@@ -1,0 +1,31 @@
+name: ARsemble
+
+options:
+  bundleIdPrefix: com.ARsemble
+  
+
+
+targets:
+  ARsemble:
+    type: application
+    platform: iOS
+    
+    deploymentTarget: "26.0"
+        
+    sources:
+      - ARsemble/
+
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.project.ARsemble
+
+    info:
+      path: Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        NSCameraUsageDescription: "Please allow camera access to this app for Augmented Reality Feature"
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+
+    scheme:
+      testTargets: []

@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+
+# Xcode (user state)
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Derived data
+DerivedData/
+
+# Custom
+start_claude.sh
+.agents
+.claude
+PRD.md
+skills-lock.json
+VisualizingAndInteractingWithAReconstructedScene
+ARsemble.xcodeproj
+Info.plist
