@@ -19,6 +19,5 @@ start_claude.sh
 .claude
 PRD.md
 skills-lock.json
-VisualizingAndInteractingWithAReconstructedScene
 ARsemble.xcodeproj
 Info.plist
