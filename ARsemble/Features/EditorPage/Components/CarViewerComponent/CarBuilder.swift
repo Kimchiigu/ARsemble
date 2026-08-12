@@ -10,6 +10,8 @@ import UIKit
 
 enum CarBuilder {
     static let displayScale: Float = 3.0
+    
+    private static let referenceFootprint: Float = 0.36
 
     struct Config: Equatable {
         let lengthCm: Float
@@ -43,7 +45,7 @@ enum CarBuilder {
             child.removeFromParent()
         }
 
-        let unit = 0.01 * displayScale          // cm → world units
+        let unit = 0.01 * displayScale           // cm → world units
         let length = config.lengthCm * unit      // X
         let width  = config.widthCm  * unit      // Z
         let height = config.heightCm * unit      // Y
@@ -52,7 +54,7 @@ enum CarBuilder {
         makeEyes(length: length, width: width, height: height).forEach { holder.addChild($0) }
 
         let style = wheelStyle(for: config.tyreIndex)
-        let baseRadius = min(min(length, width), height) * 0.24
+        let baseRadius = referenceFootprint * 0.24
         let radius = max(baseRadius * style.radiusMultiplier, 0.01)
         let axle = max(radius * 0.65 * style.widthMultiplier, 0.01)
 
@@ -76,7 +78,7 @@ enum CarBuilder {
     }
 
     private static func makeEyes(length: Float, width: Float, height: Float) -> [ModelEntity] {
-        let radius = min(min(length, width), height) * 0.06
+        let radius = referenceFootprint * 0.06
         let mesh = MeshResource.generateSphere(radius: radius)
         let material = SimpleMaterial(color: UIColor(white: 0.98, alpha: 1), roughness: 0.35, isMetallic: false)
         let x = length / 2 + radius * 0.6
