@@ -12,8 +12,12 @@ struct EditorView: View {
         VStack {
             HStack {
                 Text("Car Model Here")
-                Spacer()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
+                
                 EditorConfigView()
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .layoutPriority(1)
             }
             
             HStack {
@@ -21,11 +25,27 @@ struct EditorView: View {
                 Button {
                     
                 } label: {
-                    Text("Ready")
+                    Text("Reset to Default")
+                        .foregroundStyle(Color.black)
                 }
                 .buttonBorderShape(.roundedRectangle)
                 .padding()
-                .background(Color.orange)
+                .frame(width: 200)
+                .glassEffect()
+                
+                Button {
+                    
+                } label: {
+                    Text("Ready")
+                        .foregroundStyle(Color.white)
+                }
+                .buttonBorderShape(.roundedRectangle)
+                .padding()
+                .frame(width: 200)
+                .background(
+                    RoundedRectangle(cornerRadius: 24)
+                        .fill(Color.orange)
+                )
                 .glassEffect()
             }
         }

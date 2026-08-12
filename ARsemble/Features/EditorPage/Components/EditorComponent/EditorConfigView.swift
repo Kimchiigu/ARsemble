@@ -18,6 +18,7 @@ struct EditorConfigView: View {
                 Text("Color").tag(2)
             }
             .pickerStyle(.segmented)
+            .padding(.bottom, 24)
             
             switch configOption {
                 case 0:

@@ -8,20 +8,17 @@
 import SwiftUI
 import Foundation
 
-struct TyreCell: View {
-    let tyre: Tyre
+struct ColorPalleteCell: View {
+    let colorPallete: ColorPallete
     let isSelected: Bool
     
     var body: some View {
         VStack(spacing: 8) {
-            Image(systemName: tyre.image)
-                .font(.system(size: 24))
-            Text(tyre.name)
-                .font(.subheadline)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(colorPallete.color)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(.thinMaterial)
+        .frame(maxWidth: .infinity, minHeight: 128)
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 3)

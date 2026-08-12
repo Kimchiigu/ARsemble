@@ -10,7 +10,7 @@ import SwiftUI
 struct ColorConfigView: View {
     @State private var selectedColor: ColorPallete? = nil
     
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 16), count: 3)
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 16), count: 4)
     
     init() {
         _selectedColor = State(initialValue: colorPalletes.first)
@@ -30,6 +30,7 @@ struct ColorConfigView: View {
                 }
             }
         }
+        .frame(height: 350)
     }
 }
 
