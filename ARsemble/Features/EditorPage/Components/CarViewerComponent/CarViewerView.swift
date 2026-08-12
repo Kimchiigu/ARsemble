@@ -8,21 +8,13 @@
 import RealityKit
 import SwiftUI
 
-/// Live 3D preview of the robot-car. Built with the modern SwiftUI-native
-/// `RealityView` (not the deprecated `ARView` + `ARKit` + `UIViewRepresentable`
-/// stack used by the old reference). It renders a non-AR virtual scene, so it
-/// works embedded in the editor layout with no camera-feed / world-tracking.
-///
-/// Drag to orbit, pinch to zoom. The car itself is rebuilt whenever the shared
-/// `CarEditorModel` changes.
 struct CarViewerView: View {
     let model: CarEditorModel
 
-    /// Persistent root for the whole car. Lives for the view's lifetime; only
-    /// its children (the car parts) are rebuilt when the config changes.
+    @Binding var previewedTyre: Tyre?
     @State private var holder = Entity()
-
-    /// Orbit / zoom state, driven by gestures.
+    
+    @State private var lighting = Entity()
     @State private var yaw: Double = -0.5
     @State private var pitch: Double = -0.22
     @State private var zoom: Double = 1.0
@@ -30,8 +22,6 @@ struct CarViewerView: View {
     @State private var lastMagnification: CGFloat = 1.0
 
     var body: some View {
-        // Read the tracked model properties here so any change re-evaluates
-        // `body`, which re-runs the RealityView `update` closure.
         let config = CarBuilder.Config(
             lengthCm: Float(model.lengthCm),
             widthCm: Float(model.widthCm),
@@ -42,12 +32,17 @@ struct CarViewerView: View {
         )
 
         RealityView { content in
-            content.add(holder)
+            buildLighting(into: lighting)
+            
+            if !content.entities.contains(where: { $0 === holder }) {
+                content.add(holder)
+            }
+            if !content.entities.contains(where: { $0 === lighting }) {
+                content.add(lighting)
+            }
             CarBuilder.apply(to: holder, config: config)
             applyTransform()
         } update: { _ in
-            // `apply` is a no-op when the config is unchanged (e.g. during an
-            // orbit drag), so this is cheap to run on every update.
             CarBuilder.apply(to: holder, config: config)
             applyTransform()
         }
@@ -84,9 +79,35 @@ struct CarViewerView: View {
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 10)
         }
+        .overlay(alignment: .top) {
+            if let tyre = previewedTyre {
+                TyreStatView(name: tyre.name, stats: tyre.stats)
+                    .shadow(radius: 12)
+                    .padding(.top, 12)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: previewedTyre)
     }
 
-    /// Apply orbit (yaw/pitch) and zoom to the car root.
+    private func buildLighting(into root: Entity) {
+        guard root.children.isEmpty else { return }
+
+        let key = Entity()
+        key.components[DirectionalLightComponent.self] = DirectionalLightComponent(
+            color: UIColor.white, intensity: 2400, isRealWorldProxy: false
+        )
+        key.look(at: [0, 0, 0], from: [1.4, 2.6, 2.2], relativeTo: nil)
+        root.addChild(key)
+
+        let fill = Entity()
+        fill.components[DirectionalLightComponent.self] = DirectionalLightComponent(
+            color: UIColor(white: 0.88, alpha: 1), intensity: 750, isRealWorldProxy: false
+        )
+        fill.look(at: [0, 0, 0], from: [-1.8, 1.4, -1.6], relativeTo: nil)
+        root.addChild(fill)
+    }
+
     private func applyTransform() {
         let rotation = simd_quatf(angle: Float(yaw), axis: [0, 1, 0])
                     * simd_quatf(angle: Float(pitch), axis: [1, 0, 0])
@@ -99,6 +120,6 @@ struct CarViewerView: View {
 }
 
 #Preview {
-    CarViewerView(model: CarEditorModel())
+    CarViewerView(model: CarEditorModel(), previewedTyre: .constant(nil))
         .frame(height: 360)
 }

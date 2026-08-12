@@ -8,31 +8,26 @@
 import SwiftUI
 
 struct EditorConfigView: View {
-    @State private var configOption = 0
-
-    // Shared editor state — forwarded to whichever panel is showing, so every
-    // change flows straight into the 3D viewer.
-    var model: CarEditorModel
+    @Bindable var model: CarEditorModel
+    @Binding var previewedTyre: Tyre?
 
     var body: some View {
         VStack {
-            Picker("Config Type", selection: $configOption) {
-                Text("Structure").tag(0)
-                Text("Tyre").tag(1)
-                Text("Color").tag(2)
+            Picker("Config Type", selection: $model.selectedTab) {
+                ForEach(CarEditorModel.ConfigTab.allCases, id: \.self) { tab in
+                    Text(tab.title).tag(tab)
+                }
             }
             .pickerStyle(.segmented)
             .padding(.bottom, 24)
 
-            switch configOption {
-                case 0:
-                    StructureConfigView(model: model)
-                case 1:
-                    TyreConfigView(model: model)
-                case 2:
-                    ColorConfigView(model: model)
-                default:
-                    Text("Invalid")
+            switch model.selectedTab {
+            case .structure:
+                StructureConfigView(model: model)
+            case .tyre:
+                TyreConfigView(model: model, previewedTyre: $previewedTyre)
+            case .color:
+                ColorConfigView(model: model)
             }
         }
         .padding(.top, 32)
@@ -43,5 +38,5 @@ struct EditorConfigView: View {
 }
 
 #Preview {
-    EditorConfigView(model: CarEditorModel())
+    EditorConfigView(model: CarEditorModel(), previewedTyre: .constant(nil))
 }

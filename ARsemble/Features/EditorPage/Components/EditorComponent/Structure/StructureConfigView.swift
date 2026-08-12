@@ -22,7 +22,6 @@ struct StructureConfigView: View {
         .padding()
     }
 
-    /// Map each `Dimension` to the matching property on the shared model.
     private func binding(for dimension: Dimension) -> Binding<Double> {
         switch dimension {
         case .length: $model.lengthCm

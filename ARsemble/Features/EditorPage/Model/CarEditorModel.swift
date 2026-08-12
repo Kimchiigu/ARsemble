@@ -8,38 +8,32 @@
 import Foundation
 import Observation
 
-/// Single source of truth for the robot-car editor. It drives both the 3D
-/// viewer (`CarViewerView`) and every configuration panel (structure / tyre /
-/// colour), so changing a value here instantly updates the 3D car.
-///
-/// Uses `@Observable` so any SwiftUI view that reads a property re-renders
-/// automatically when it changes — no `@State` duplication or manual bindings
-/// threaded between siblings.
 @Observable
 final class CarEditorModel {
+    enum ConfigTab: Hashable, CaseIterable {
+        case structure, tyre, color
 
-    // MARK: Structure (centimetres — matches the 5...30 slider range)
+        var title: String {
+            switch self {
+            case .structure: return "Structure"
+            case .tyre:      return "Tyre"
+            case .color:     return "Color"
+            }
+        }
+    }
 
-    /// Length of the body, front → back.
+    var selectedTab: ConfigTab = .structure
     var lengthCm: Double
-    /// Width of the body, side → side.
     var widthCm: Double
-    /// Height of the body, floor → roof.
     var heightCm: Double
-
-    // MARK: Appearance
-
-    /// Body colour palette.
     var bodyColor: ColorPallete
-
-    /// Tyre type — applied to all four wheels (a single, kid-simple choice).
     var tyre: Tyre
 
     init(
         lengthCm: Double = 18,
         widthCm: Double = 12,
         heightCm: Double = 9,
-        bodyColor: ColorPallete = colorPalletes[4], // "Blue"
+        bodyColor: ColorPallete = colorPalletes[4],
         tyre: Tyre = tyres[0]
     ) {
         self.lengthCm = lengthCm
@@ -49,7 +43,6 @@ final class CarEditorModel {
         self.tyre = tyre
     }
 
-    /// Restore the starting robot-car.
     func reset() {
         lengthCm = 18
         widthCm = 12

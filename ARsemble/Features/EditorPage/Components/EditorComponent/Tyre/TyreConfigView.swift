@@ -9,6 +9,7 @@ import SwiftUI
 
 struct TyreConfigView: View {
     @Bindable var model: CarEditorModel
+    @Binding var previewedTyre: Tyre?
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 16), count: 3)
 
@@ -22,6 +23,7 @@ struct TyreConfigView: View {
                     )
                     .onTapGesture {
                         model.tyre = tyre
+                        previewedTyre = (previewedTyre?.id == tyre.id) ? nil : tyre
                     }
                 }
             }
@@ -31,5 +33,5 @@ struct TyreConfigView: View {
 }
 
 #Preview {
-    TyreConfigView(model: CarEditorModel())
+    TyreConfigView(model: CarEditorModel(), previewedTyre: .constant(nil))
 }

@@ -11,13 +11,14 @@ struct Tyre: Identifiable, Equatable {
     let id: UUID = UUID()
     let name: String
     let image: String
+    let stats: TyreStats
 }
 
 let tyres: [Tyre] = [
-    Tyre(name: "Tyre 1", image: "car.fill"),
-    Tyre(name: "Tyre 2", image: "car.fill"),
-    Tyre(name: "Tyre 3", image: "car.fill"),
-    Tyre(name: "Tyre 4", image: "car.fill"),
-    Tyre(name: "Tyre 5", image: "car.fill"),
-    Tyre(name: "Tyre 6", image: "car.fill")
+    Tyre(name: "Tyre 1", image: "car.fill", stats: TyreStats(grip: 3, size: 2, speed: 2, weight: 2)),
+    Tyre(name: "Tyre 2", image: "car.fill", stats: TyreStats(grip: 3, size: 3, speed: 2, weight: 3)),
+    Tyre(name: "Tyre 3", image: "car.fill", stats: TyreStats(grip: 3, size: 4, speed: 3, weight: 4)),
+    Tyre(name: "Tyre 4", image: "car.fill", stats: TyreStats(grip: 4, size: 5, speed: 3, weight: 5)),
+    Tyre(name: "Tyre 5", image: "car.fill", stats: TyreStats(grip: 2, size: 4, speed: 3, weight: 2)),
+    Tyre(name: "Tyre 6", image: "car.fill", stats: TyreStats(grip: 1, size: 1, speed: 1, weight: 1))
 ]
