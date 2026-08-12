@@ -8,34 +8,30 @@
 import SwiftUI
 
 struct StructureConfigView: View {
-    private let initialValues: [Dimension: Double] = [
-        .length: 5,
-        .width: 5,
-        .height: 5
-    ]
-    
-    @State private var values: [Dimension: Double] = [:]
-    
-    init() {
-        _values = State(initialValue: initialValues)
-    }
-    
+    @Bindable var model: CarEditorModel
+
     var body: some View {
         VStack {
             ForEach(Dimension.allCases) { dimension in
                 StructureCell(
                     dimension: dimension,
-                    value: Binding(
-                        get: { values[dimension] ?? 0 },
-                        set: { values[dimension] = $0 }
-                    )
+                    value: binding(for: dimension)
                 )
             }
         }
         .padding()
     }
+
+    /// Map each `Dimension` to the matching property on the shared model.
+    private func binding(for dimension: Dimension) -> Binding<Double> {
+        switch dimension {
+        case .length: $model.lengthCm
+        case .width:  $model.widthCm
+        case .height: $model.heightCm
+        }
+    }
 }
 
 #Preview {
-    StructureConfigView()
+    StructureConfigView(model: CarEditorModel())
 }

@@ -9,7 +9,11 @@ import SwiftUI
 
 struct EditorConfigView: View {
     @State private var configOption = 0
-    
+
+    // Shared editor state — forwarded to whichever panel is showing, so every
+    // change flows straight into the 3D viewer.
+    var model: CarEditorModel
+
     var body: some View {
         VStack {
             Picker("Config Type", selection: $configOption) {
@@ -19,14 +23,14 @@ struct EditorConfigView: View {
             }
             .pickerStyle(.segmented)
             .padding(.bottom, 24)
-            
+
             switch configOption {
                 case 0:
-                    StructureConfigView()
+                    StructureConfigView(model: model)
                 case 1:
-                    TyreConfigView()
+                    TyreConfigView(model: model)
                 case 2:
-                    ColorConfigView()
+                    ColorConfigView(model: model)
                 default:
                     Text("Invalid")
             }
@@ -39,5 +43,5 @@ struct EditorConfigView: View {
 }
 
 #Preview {
-    EditorConfigView()
+    EditorConfigView(model: CarEditorModel())
 }
