@@ -8,13 +8,7 @@
 import SwiftUI
 
 struct EditorView: View {
-    // The one source of truth for the editor. Owned here, shared with both the
-    // 3D viewer and the configuration panels.
     @State private var model = CarEditorModel()
-
-    /// The tyre whose stats are shown over the car. Owned here so a tap in
-    /// `TyreConfigView` (right panel) can drive an overlay in `CarViewerView`
-    /// (left panel).
     @State private var previewedTyre: Tyre?
 
     var body: some View {
@@ -30,6 +24,38 @@ struct EditorView: View {
             }
 
             HStack {
+                ZStack {
+                    Circle()
+                        .fill(Color(.systemGray6))
+                        .frame(width: 64, height: 64)
+                    Image("armadillo-editor")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48, height: 48)
+                }
+                
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.blue)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .stroke(Color.blue.opacity(0.7), lineWidth: 1)
+                        )
+                    
+                    BubbleTail()
+                        .fill(Color.blue)
+                        .frame(width: 20, height: 24)
+                        .offset(x: -18)
+                    
+                    Text("Design a car that has a low center of gravity.")
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .font(.title3)
+                        .bold()
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                
                 Spacer()
                 Button {
                     model.reset()
@@ -59,9 +85,10 @@ struct EditorView: View {
             }
         }
         .padding()
-        // Leaving the tyre tab closes the stats popup.
         .onChange(of: model.selectedTab) { _, _ in previewedTyre = nil }
     }
+    
+    // color of the background should be: rgba(250, 238, 222)
 }
 
 #Preview {
