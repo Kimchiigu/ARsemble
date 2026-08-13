@@ -10,6 +10,7 @@ import SwiftUI
 
 struct CarViewerView: View {
     let viewModel: EditorViewModel
+    var isPresenting: Bool = false
 
     @State private var holder = Entity()
     @State private var lighting = Entity()
@@ -43,11 +44,12 @@ struct CarViewerView: View {
             applyTransform()
         } update: { _ in
             applySpec()
-            applyTransform()
+            if !isPresenting { applyTransform() }
         }
         .gesture(
             DragGesture()
                 .onChanged { value in
+                    guard !isPresenting else { return }
                     let dx = value.translation.width - lastDrag.width
                     let dy = value.translation.height - lastDrag.height
                     yaw -= Double(dx) * 0.012
@@ -60,6 +62,7 @@ struct CarViewerView: View {
         .simultaneousGesture(
             MagnifyGesture()
                 .onChanged { value in
+                    guard !isPresenting else { return }
                     let m = value.magnification
                     zoom *= Double(m / lastMagnification)
                     zoom = max(0.45, min(2.5, zoom))
@@ -73,10 +76,19 @@ struct CarViewerView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(alignment: .bottom) {
-            Text("Drag to rotate • Pinch to zoom")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 10)
+            if !isPresenting {
+                Text("Drag to rotate • Pinch to zoom")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 10)
+            }
+        }
+        .onChange(of: isPresenting) { _, presenting in
+            if presenting {
+                playCinematic()
+            } else {
+                applyTransform()
+            }
         }
     }
 
@@ -117,6 +129,32 @@ struct CarViewerView: View {
             rotation: rotation,
             translation: .zero
         )
+    }
+
+    private func playCinematic() {
+        let facing = simd_quatf(angle: -Float.pi / 2, axis: [0, 1, 0])
+
+        holder.move(
+            to: Transform(scale: SIMD3<Float>(repeating: 1),
+                          rotation: facing,
+                          translation: .zero),
+            relativeTo: nil,
+            duration: 0.6,
+            timingFunction: .easeInOut
+        )
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.6))
+            if Task.isCancelled { return }
+            holder.move(
+                to: Transform(scale: SIMD3<Float>(repeating: 5),
+                              rotation: facing,
+                              translation: SIMD3<Float>(0, 0, 0.3)),
+                relativeTo: nil,
+                duration: 0.6,
+                timingFunction: .easeIn
+            )
+        }
     }
 }
 
