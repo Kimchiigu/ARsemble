@@ -19,17 +19,15 @@ struct CarViewerView: View {
     @State private var lastDrag: CGSize = .zero
     @State private var lastMagnification: CGFloat = 1.0
 
-    var body: some View {
-        let config = CarBuilder.Config(
-            lengthCm: Float(viewModel.lengthCm),
-            widthCm: Float(viewModel.widthCm),
-            heightCm: Float(viewModel.heightCm),
-            bodyColor: viewModel.bodyColor.color,
-            bodyColorId: viewModel.bodyColor.id,
-            tyreIndex: tyres.firstIndex { $0.id == viewModel.tyre.id } ?? 0
-        )
+    private static var systemsRegistered = false
 
+    var body: some View {
         RealityView { content in
+            if !Self.systemsRegistered {
+                CarAssemblySystem.registerSystem()
+                Self.systemsRegistered = true
+            }
+
             buildLighting(into: lighting)
 
             if !content.entities.contains(where: { $0 === holder }) {
@@ -40,10 +38,11 @@ struct CarViewerView: View {
             }
 
             await CarBuilder.prepareWheelAssets()
-            CarBuilder.apply(to: holder, config: config)
+            applySpec()
+            CarBuilder.invalidateBuildState(on: holder)
             applyTransform()
         } update: { _ in
-            CarBuilder.apply(to: holder, config: config)
+            applySpec()
             applyTransform()
         }
         .gesture(
@@ -88,6 +87,17 @@ struct CarViewerView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.previewedTyre)
+    }
+
+    private func applySpec() {
+        holder.components[CarSpecComponent.self] = CarSpecComponent(
+            lengthCm: Float(viewModel.lengthCm),
+            widthCm: Float(viewModel.widthCm),
+            heightCm: Float(viewModel.heightCm),
+            bodyColor: UIColor(viewModel.bodyColor.color),
+            bodyColorId: viewModel.bodyColor.id,
+            tyreIndex: tyres.firstIndex { $0.id == viewModel.tyre.id } ?? 0
+        )
     }
 
     private func buildLighting(into root: Entity) {

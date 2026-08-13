@@ -2,10 +2,11 @@
 //  CarBuilder.swift
 //  ARsemble
 //
+//  Created by Christopher Hardy Gunawan on 12/08/26.
+//
 
 import Foundation
 import RealityKit
-import SwiftUI
 import UIKit
 
 enum CarBuilder {
@@ -22,68 +23,50 @@ enum CarBuilder {
     private static var wheelAssets: [Int: WheelAsset] = [:]
     private static var wheelAssetsPrepared = false
 
-    struct Config: Equatable {
-        let lengthCm: Float
-        let widthCm: Float
-        let heightCm: Float
-        let bodyColor: Color
-        let bodyColorId: UUID
-        let tyreIndex: Int
-
-        static func == (lhs: Config, rhs: Config) -> Bool {
-            lhs.lengthCm == rhs.lengthCm
-                && lhs.widthCm == rhs.widthCm
-                && lhs.heightCm == rhs.heightCm
-                && lhs.bodyColorId == rhs.bodyColorId
-                && lhs.tyreIndex == rhs.tyreIndex
-        }
-    }
-
     private struct WheelStyle {
         let tyreColor: UIColor
     }
 
-    static func apply(to holder: Entity, config: Config) {
-        if let state = holder.components[CarBuildState.self], state.matches(config) {
-            return
-        }
-
-        for child in Array(holder.children) {
+    static func assemble(_ car: Entity, spec: CarSpecComponent) {
+        for child in Array(car.children) {
             child.removeFromParent()
         }
 
-        let unit = 0.01 * displayScale           // cm → world units
-        let length = config.lengthCm * unit      // X (front–back)
-        let width  = config.widthCm  * unit      // Z (side–side)
-        let height = config.heightCm * unit      // Y (up)
+        let unit = 0.01 * displayScale
+        let length = spec.lengthCm * unit
+        let width = spec.widthCm * unit
+        let height = spec.heightCm * unit
 
-        holder.addChild(makeBody(length: length, width: width, height: height, color: config.bodyColor))
-        makeEyes(length: length, width: width, height: height).forEach { holder.addChild($0) }
+        let chassis = makeChassis(length: length, width: width, height: height, color: spec.bodyColor)
+        chassis.components[ChassisComponent.self] = ChassisComponent()
+        car.addChild(chassis)
 
-        let style = wheelStyle(for: config.tyreIndex)
+        makeEyes(length: length, width: width, height: height).forEach { car.addChild($0) }
 
         let mm: Float = 0.001 * displayScale
-        let diameter = tyreDiameterMm(for: config.tyreIndex) * mm
+        let diameter = tyreDiameterMm(for: spec.tyreIndex) * mm
         let radius = diameter / 2
-        let axle = tyreWidthMm(for: config.tyreIndex) * mm
+        let axle = tyreWidthMm(for: spec.tyreIndex) * mm
 
         let wheelY = -height / 2 + radius * 0.5
         let wheelX = length / 2 - radius
         let wheelZ = width / 2 + axle / 2
 
-        for (sx, sz) in [(Float(1), Float(1)), (1, -1), (-1, 1), (-1, -1)] {
-            let wheel = usdzWheel(for: config.tyreIndex, diameter: diameter)
+        let style = wheelStyle(for: spec.tyreIndex)
+        for (sx, sz) in [(Float(1.0), Float(1.0)), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)] {
+            let wheel = usdzWheel(for: spec.tyreIndex, diameter: diameter)
                 ?? makeWheel(radius: radius, axle: axle, style: style)
             wheel.position = [sx * wheelX, wheelY, sz * wheelZ]
-            
             if sz < 0 {
                 wheel.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0]) * wheel.orientation
             }
-
-            holder.addChild(wheel)
+            wheel.components[WheelComponent.self] = WheelComponent(slotX: sx, slotZ: sz)
+            car.addChild(wheel)
         }
+    }
 
-        holder.components[CarBuildState.self] = CarBuildState(config)
+    static func invalidateBuildState(on car: Entity) {
+        car.components[CarBuildStateComponent.self] = nil
     }
 
     @MainActor static func prepareWheelAssets() async {
@@ -111,7 +94,7 @@ enum CarBuilder {
 
     private static func usdzWheel(for index: Int, diameter: Float) -> Entity? {
         guard let asset = wheelAssets[index] else { return nil }
-        
+
         let clone = asset.model.clone(recursive: true)
         clone.position = -asset.center
 
@@ -139,10 +122,10 @@ enum CarBuilder {
         }
     }
 
-    private static func makeBody(length: Float, width: Float, height: Float, color: Color) -> ModelEntity {
+    private static func makeChassis(length: Float, width: Float, height: Float, color: UIColor) -> ModelEntity {
         let corner = min(min(length, width, height) * 0.14, 0.06)
         let mesh = MeshResource.generateBox(size: [length, height, width], cornerRadius: corner)
-        return ModelEntity(mesh: mesh, materials: [SimpleMaterial(color: UIColor(color), roughness: 0.45, isMetallic: false)])
+        return ModelEntity(mesh: mesh, materials: [SimpleMaterial(color: color, roughness: 0.45, isMetallic: false)])
     }
 
     private static func makeEyes(length: Float, width: Float, height: Float) -> [ModelEntity] {
@@ -186,12 +169,12 @@ enum CarBuilder {
 
     private static func wheelStyle(for index: Int) -> WheelStyle {
         switch index {
-        case 1:  return .init(tyreColor: UIColor(white: 0.18, alpha: 1))            // Sport
-        case 2:  return .init(tyreColor: UIColor(red: 0.36, green: 0.25, blue: 0.16, alpha: 1)) // Offroad
-        case 3:  return .init(tyreColor: UIColor(white: 0.22, alpha: 1))            // Heavy
-        case 4:  return .init(tyreColor: UIColor(white: 0.12, alpha: 1))            // Monster
-        case 5:  return .init(tyreColor: UIColor(white: 0.50, alpha: 1))            // Slim
-        default: return .init(tyreColor: UIColor(white: 0.32, alpha: 1))            // City
+        case 1:  return .init(tyreColor: UIColor(white: 0.18, alpha: 1))
+        case 2:  return .init(tyreColor: UIColor(red: 0.36, green: 0.25, blue: 0.16, alpha: 1))
+        case 3:  return .init(tyreColor: UIColor(white: 0.22, alpha: 1))
+        case 4:  return .init(tyreColor: UIColor(white: 0.12, alpha: 1))
+        case 5:  return .init(tyreColor: UIColor(white: 0.50, alpha: 1))
+        default: return .init(tyreColor: UIColor(white: 0.32, alpha: 1))
         }
     }
 
@@ -217,29 +200,5 @@ enum CarBuilder {
         case 5:  return 6
         default: return 22
         }
-    }
-}
-
-private struct CarBuildState: Component {
-    var lengthCm: Float
-    var widthCm: Float
-    var heightCm: Float
-    var bodyColorId: UUID
-    var tyreIndex: Int
-
-    init(_ config: CarBuilder.Config) {
-        lengthCm = config.lengthCm
-        widthCm = config.widthCm
-        heightCm = config.heightCm
-        bodyColorId = config.bodyColorId
-        tyreIndex = config.tyreIndex
-    }
-
-    func matches(_ config: CarBuilder.Config) -> Bool {
-        lengthCm == config.lengthCm
-            && widthCm == config.widthCm
-            && heightCm == config.heightCm
-            && bodyColorId == config.bodyColorId
-            && tyreIndex == config.tyreIndex
     }
 }
