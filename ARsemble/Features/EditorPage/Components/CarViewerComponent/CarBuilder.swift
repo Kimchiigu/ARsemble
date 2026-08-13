@@ -13,15 +13,12 @@ enum CarBuilder {
 
     private static let referenceFootprint: Float = 0.36
 
-    /// A loaded USDZ wheel plus the geometry info needed to scale/center it.
     private struct WheelAsset {
         let model: ModelEntity
         let center: SIMD3<Float>
         let maxDim: Float
     }
 
-    /// USDZ wheel cache, one entry per tyre index (0–5). Loaded once on the
-    /// main actor, then cloned per wheel so loading never blocks a rebuild.
     private static var wheelAssets: [Int: WheelAsset] = [:]
     private static var wheelAssetsPrepared = false
 
@@ -43,8 +40,6 @@ enum CarBuilder {
     }
 
     private struct WheelStyle {
-        let radiusMultiplier: Float
-        let widthMultiplier: Float
         let tyreColor: UIColor
     }
 
@@ -58,38 +53,39 @@ enum CarBuilder {
         }
 
         let unit = 0.01 * displayScale           // cm → world units
-        let length = config.lengthCm * unit      // X
-        let width  = config.widthCm  * unit      // Z
-        let height = config.heightCm * unit      // Y
+        let length = config.lengthCm * unit      // X (front–back)
+        let width  = config.widthCm  * unit      // Z (side–side)
+        let height = config.heightCm * unit      // Y (up)
 
         holder.addChild(makeBody(length: length, width: width, height: height, color: config.bodyColor))
         makeEyes(length: length, width: width, height: height).forEach { holder.addChild($0) }
 
         let style = wheelStyle(for: config.tyreIndex)
-        let baseRadius = referenceFootprint * 0.24
-        let radius = max(baseRadius * style.radiusMultiplier, 0.01)
-        let axle = max(radius * 0.65 * style.widthMultiplier, 0.01)
+
+        let mm: Float = 0.001 * displayScale
+        let diameter = tyreDiameterMm(for: config.tyreIndex) * mm
+        let radius = diameter / 2
+        let axle = tyreWidthMm(for: config.tyreIndex) * mm
 
         let wheelY = -height / 2 + radius * 0.5
         let wheelX = length / 2 - radius
         let wheelZ = width / 2 + axle / 2
 
         for (sx, sz) in [(Float(1), Float(1)), (1, -1), (-1, 1), (-1, -1)] {
-            // Use the USDZ wheel for the selected tyre when its asset is cached;
-            // fall back to a procedural wheel only if it hasn't loaded yet.
-            let wheel = usdzWheel(for: config.tyreIndex, radius: radius)
+            let wheel = usdzWheel(for: config.tyreIndex, diameter: diameter)
                 ?? makeWheel(radius: radius, axle: axle, style: style)
             wheel.position = [sx * wheelX, wheelY, sz * wheelZ]
+            
+            if sz < 0 {
+                wheel.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0]) * wheel.orientation
+            }
+
             holder.addChild(wheel)
         }
 
         holder.components[CarBuildState.self] = CarBuildState(config)
     }
 
-    /// Loads every USDZ wheel (tyre1…tyre6) once on the main actor, records each
-    /// one's raw bounds, and converts its PBR materials to lit ones. Call this
-    /// (async) from the RealityView `make` closure before the first `apply`;
-    /// it's a no-op after the first call.
     @MainActor static func prepareWheelAssets() async {
         guard !wheelAssetsPrepared else { return }
         wheelAssetsPrepared = true
@@ -98,53 +94,37 @@ enum CarBuilder {
             let name = "tyre\(index + 1)"
             do {
                 let model = try await ModelEntity(named: name)
-                // Entity is @MainActor-isolated, so every access below must run
-                // on the main actor — hence this whole function is @MainActor.
-                model.transform = Transform()                 // ignore authored root transform
+                model.transform = Transform()
 
                 let bounds = model.visualBounds(recursive: true, relativeTo: nil)
                 let dim = bounds.max - bounds.min
                 let maxDim = max(dim.x, dim.y, dim.z)
 
-                makeLitMaterials(on: model)                   // avoid PBR / env-probe crash
+                makeLitMaterials(on: model)
 
                 wheelAssets[index] = WheelAsset(model: model, center: bounds.center, maxDim: maxDim)
-                print("CarBuilder: ✓ cached wheel '\(name)' — maxDim \(String(format: "%.3f", maxDim))")
             } catch {
                 print("CarBuilder: ✗ failed to load wheel '\(name)': \(error)")
             }
         }
     }
 
-    /// Builds one car wheel from the cached USDZ for the given tyre, sized to
-    /// the car's wheel radius and centered/oriented. Returns nil if the asset
-    /// isn't loaded yet (caller falls back to a procedural wheel).
-    private static func usdzWheel(for index: Int, radius: Float) -> Entity? {
+    private static func usdzWheel(for index: Int, diameter: Float) -> Entity? {
         guard let asset = wheelAssets[index] else { return nil }
-
-        // Clone the raw model and offset it so its geometry is centered at the
-        // clone's origin — done on the child so the wrapper can scale/rotate
-        // freely without breaking the centering.
+        
         let clone = asset.model.clone(recursive: true)
         clone.position = -asset.center
 
         let wrapper = Entity()
         wrapper.addChild(clone)
 
-        // Size the wheel so its largest dimension equals the wheel diameter.
-        let diameter = max(radius * 2, 0.01)
         let scale = asset.maxDim > 0 ? diameter / asset.maxDim : 1
         wrapper.scale = SIMD3(repeating: scale)
 
-        // Point the axle along Z so wheels sit on the sides of the car. If your
-        // USDZ wheels come in oriented differently, this is the line to change.
         wrapper.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
         return wrapper
     }
 
-    /// Recursively replaces every PBR material with a lit `SimpleMaterial` (one
-    /// per submesh) so the USDZ never runs the PBR/env-probe shader, which
-    /// aborts without an image-based-lighting environment.
     @MainActor private static func makeLitMaterials(on entity: Entity) {
         if let modelEntity = entity as? ModelEntity, var component = modelEntity.model {
             component.materials = component.materials.map { _ in
@@ -206,18 +186,36 @@ enum CarBuilder {
 
     private static func wheelStyle(for index: Int) -> WheelStyle {
         switch index {
-        case 1:  return .init(radiusMultiplier: 1.00, widthMultiplier: 1.00,
-                              tyreColor: UIColor(white: 0.18, alpha: 1))            // Sport
-        case 2:  return .init(radiusMultiplier: 1.25, widthMultiplier: 1.40,
-                              tyreColor: UIColor(red: 0.36, green: 0.25, blue: 0.16, alpha: 1)) // Offroad
-        case 3:  return .init(radiusMultiplier: 1.35, widthMultiplier: 1.60,
-                              tyreColor: UIColor(white: 0.22, alpha: 1))            // Heavy
-        case 4:  return .init(radiusMultiplier: 1.55, widthMultiplier: 1.50,
-                              tyreColor: UIColor(white: 0.12, alpha: 1))            // Monster
-        case 5:  return .init(radiusMultiplier: 0.80, widthMultiplier: 0.60,
-                              tyreColor: UIColor(white: 0.50, alpha: 1))            // Slim
-        default: return .init(radiusMultiplier: 0.90, widthMultiplier: 0.80,
-                              tyreColor: UIColor(white: 0.32, alpha: 1))            // City
+        case 1:  return .init(tyreColor: UIColor(white: 0.18, alpha: 1))            // Sport
+        case 2:  return .init(tyreColor: UIColor(red: 0.36, green: 0.25, blue: 0.16, alpha: 1)) // Offroad
+        case 3:  return .init(tyreColor: UIColor(white: 0.22, alpha: 1))            // Heavy
+        case 4:  return .init(tyreColor: UIColor(white: 0.12, alpha: 1))            // Monster
+        case 5:  return .init(tyreColor: UIColor(white: 0.50, alpha: 1))            // Slim
+        default: return .init(tyreColor: UIColor(white: 0.32, alpha: 1))            // City
+        }
+    }
+
+    private static func tyreDiameterMm(for index: Int) -> Float {
+        switch index {
+        case 0:  return 43.2
+        case 1:  return 56
+        case 2:  return 94.8
+        case 3:  return 105
+        case 4:  return 81.6
+        case 5:  return 14
+        default: return 43.2
+        }
+    }
+
+    private static func tyreWidthMm(for index: Int) -> Float {
+        switch index {
+        case 0:  return 22
+        case 1:  return 28
+        case 2:  return 42
+        case 3:  return 60
+        case 4:  return 13.6
+        case 5:  return 6
+        default: return 22
         }
     }
 }
