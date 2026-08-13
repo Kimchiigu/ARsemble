@@ -40,6 +40,7 @@ struct CarViewerView: View {
             if !content.entities.contains(where: { $0 === lighting }) {
                 content.add(lighting)
             }
+            await CarBuilder.prepareWheelAssets()
             CarBuilder.apply(to: holder, config: config)
             applyTransform()
         } update: { _ in

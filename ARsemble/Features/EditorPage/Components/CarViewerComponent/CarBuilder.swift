@@ -10,8 +10,20 @@ import UIKit
 
 enum CarBuilder {
     static let displayScale: Float = 3.0
-    
+
     private static let referenceFootprint: Float = 0.36
+
+    /// A loaded USDZ wheel plus the geometry info needed to scale/center it.
+    private struct WheelAsset {
+        let model: ModelEntity
+        let center: SIMD3<Float>
+        let maxDim: Float
+    }
+
+    /// USDZ wheel cache, one entry per tyre index (0–5). Loaded once on the
+    /// main actor, then cloned per wheel so loading never blocks a rebuild.
+    private static var wheelAssets: [Int: WheelAsset] = [:]
+    private static var wheelAssetsPrepared = false
 
     struct Config: Equatable {
         let lengthCm: Float
@@ -63,12 +75,88 @@ enum CarBuilder {
         let wheelZ = width / 2 + axle / 2
 
         for (sx, sz) in [(Float(1), Float(1)), (1, -1), (-1, 1), (-1, -1)] {
-            let wheel = makeWheel(radius: radius, axle: axle, style: style)
+            // Use the USDZ wheel for the selected tyre when its asset is cached;
+            // fall back to a procedural wheel only if it hasn't loaded yet.
+            let wheel = usdzWheel(for: config.tyreIndex, radius: radius)
+                ?? makeWheel(radius: radius, axle: axle, style: style)
             wheel.position = [sx * wheelX, wheelY, sz * wheelZ]
             holder.addChild(wheel)
         }
 
         holder.components[CarBuildState.self] = CarBuildState(config)
+    }
+
+    /// Loads every USDZ wheel (tyre1…tyre6) once on the main actor, records each
+    /// one's raw bounds, and converts its PBR materials to lit ones. Call this
+    /// (async) from the RealityView `make` closure before the first `apply`;
+    /// it's a no-op after the first call.
+    @MainActor static func prepareWheelAssets() async {
+        guard !wheelAssetsPrepared else { return }
+        wheelAssetsPrepared = true
+
+        for index in 0..<6 {
+            let name = "tyre\(index + 1)"
+            do {
+                let model = try await ModelEntity(named: name)
+                // Entity is @MainActor-isolated, so every access below must run
+                // on the main actor — hence this whole function is @MainActor.
+                model.transform = Transform()                 // ignore authored root transform
+
+                let bounds = model.visualBounds(recursive: true, relativeTo: nil)
+                let dim = bounds.max - bounds.min
+                let maxDim = max(dim.x, dim.y, dim.z)
+
+                makeLitMaterials(on: model)                   // avoid PBR / env-probe crash
+
+                wheelAssets[index] = WheelAsset(model: model, center: bounds.center, maxDim: maxDim)
+                print("CarBuilder: ✓ cached wheel '\(name)' — maxDim \(String(format: "%.3f", maxDim))")
+            } catch {
+                print("CarBuilder: ✗ failed to load wheel '\(name)': \(error)")
+            }
+        }
+    }
+
+    /// Builds one car wheel from the cached USDZ for the given tyre, sized to
+    /// the car's wheel radius and centered/oriented. Returns nil if the asset
+    /// isn't loaded yet (caller falls back to a procedural wheel).
+    private static func usdzWheel(for index: Int, radius: Float) -> Entity? {
+        guard let asset = wheelAssets[index] else { return nil }
+
+        // Clone the raw model and offset it so its geometry is centered at the
+        // clone's origin — done on the child so the wrapper can scale/rotate
+        // freely without breaking the centering.
+        let clone = asset.model.clone(recursive: true)
+        clone.position = -asset.center
+
+        let wrapper = Entity()
+        wrapper.addChild(clone)
+
+        // Size the wheel so its largest dimension equals the wheel diameter.
+        let diameter = max(radius * 2, 0.01)
+        let scale = asset.maxDim > 0 ? diameter / asset.maxDim : 1
+        wrapper.scale = SIMD3(repeating: scale)
+
+        // Point the axle along Z so wheels sit on the sides of the car. If your
+        // USDZ wheels come in oriented differently, this is the line to change.
+        wrapper.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+        return wrapper
+    }
+
+    /// Recursively replaces every PBR material with a lit `SimpleMaterial` (one
+    /// per submesh) so the USDZ never runs the PBR/env-probe shader, which
+    /// aborts without an image-based-lighting environment.
+    @MainActor private static func makeLitMaterials(on entity: Entity) {
+        if let modelEntity = entity as? ModelEntity, var component = modelEntity.model {
+            component.materials = component.materials.map { _ in
+                SimpleMaterial(color: UIColor(white: 0.18, alpha: 1),
+                               roughness: 0.75,
+                               isMetallic: false)
+            }
+            modelEntity.model = component
+        }
+        for child in entity.children {
+            makeLitMaterials(on: child)
+        }
     }
 
     private static func makeBody(length: Float, width: Float, height: Float, color: Color) -> ModelEntity {
