@@ -8,7 +8,6 @@
 import SwiftUI
 
 struct NextButton: View {
-    /// Label text — becomes "Finish" on the last page, for example.
     var title: String = "Next"
     var action: () -> Void = {}
 
