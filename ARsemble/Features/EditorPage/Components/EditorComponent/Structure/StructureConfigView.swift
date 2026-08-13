@@ -15,7 +15,8 @@ struct StructureConfigView: View {
             ForEach(Dimension.allCases) { dimension in
                 StructureCell(
                     dimension: dimension,
-                    value: binding(for: dimension)
+                    value: binding(for: dimension),
+                    minimum: minimum(for: dimension)
                 )
             }
         }
@@ -27,6 +28,13 @@ struct StructureConfigView: View {
         case .length: $viewModel.lengthCm
         case .width:  $viewModel.widthCm
         case .height: $viewModel.heightCm
+        }
+    }
+
+    private func minimum(for dimension: Dimension) -> Double {
+        switch dimension {
+        case .length: viewModel.minLengthCm
+        default:      5
         }
     }
 }

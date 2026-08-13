@@ -44,9 +44,10 @@ enum CarBuilder {
         makeEyes(length: length, width: width, height: height).forEach { car.addChild($0) }
 
         let mm: Float = 0.001 * displayScale
-        let diameter = tyreDiameterMm(for: spec.tyreIndex) * mm
+        let tyre = tyres[spec.tyreIndex]
+        let diameter = tyre.diameterMm * mm
         let radius = diameter / 2
-        let axle = tyreWidthMm(for: spec.tyreIndex) * mm
+        let axle = tyre.widthMm * mm
 
         let wheelY = -height / 2 + radius * 0.5
         let wheelX = length / 2 - radius
@@ -175,30 +176,6 @@ enum CarBuilder {
         case 4:  return .init(tyreColor: UIColor(white: 0.12, alpha: 1))
         case 5:  return .init(tyreColor: UIColor(white: 0.50, alpha: 1))
         default: return .init(tyreColor: UIColor(white: 0.32, alpha: 1))
-        }
-    }
-
-    private static func tyreDiameterMm(for index: Int) -> Float {
-        switch index {
-        case 0:  return 43.2
-        case 1:  return 56
-        case 2:  return 94.8
-        case 3:  return 105
-        case 4:  return 81.6
-        case 5:  return 14
-        default: return 43.2
-        }
-    }
-
-    private static func tyreWidthMm(for index: Int) -> Float {
-        switch index {
-        case 0:  return 22
-        case 1:  return 28
-        case 2:  return 42
-        case 3:  return 60
-        case 4:  return 13.6
-        case 5:  return 6
-        default: return 22
         }
     }
 }
