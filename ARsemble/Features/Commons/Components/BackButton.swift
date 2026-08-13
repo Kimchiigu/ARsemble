@@ -8,7 +8,6 @@
 import SwiftUI
 
 struct BackButton: View {
-    /// What happens on tap. Passed in by the parent so this button stays reusable.
     var action: () -> Void = {}
 
     var body: some View {
