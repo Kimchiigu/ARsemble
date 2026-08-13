@@ -1,5 +1,5 @@
 //
-//  TyreConfigView.swift
+//  ColorConfigView.swift
 //  ARsemble
 //
 //  Created by Christopher Hardy Gunawan on 12/08/26.
@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ColorConfigView: View {
-    @Bindable var model: CarEditorModel
+    let viewModel: EditorViewModel
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 16), count: 4)
 
@@ -18,10 +18,10 @@ struct ColorConfigView: View {
                 ForEach(colorPalletes) { colorPallete in
                     ColorPalleteCell(
                         colorPallete: colorPallete,
-                        isSelected: model.bodyColor.id == colorPallete.id
+                        isSelected: viewModel.bodyColor.id == colorPallete.id
                     )
                     .onTapGesture {
-                        model.bodyColor = colorPallete
+                        viewModel.selectColor(colorPallete)
                     }
                 }
             }
@@ -31,5 +31,5 @@ struct ColorConfigView: View {
 }
 
 #Preview {
-    ColorConfigView(model: CarEditorModel())
+    ColorConfigView(viewModel: EditorViewModel())
 }

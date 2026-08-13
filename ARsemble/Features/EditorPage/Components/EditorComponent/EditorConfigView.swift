@@ -8,26 +8,25 @@
 import SwiftUI
 
 struct EditorConfigView: View {
-    @Bindable var model: CarEditorModel
-    @Binding var previewedTyre: Tyre?
+    @Bindable var viewModel: EditorViewModel
 
     var body: some View {
         VStack {
-            Picker("Config Type", selection: $model.selectedTab) {
-                ForEach(CarEditorModel.ConfigTab.allCases, id: \.self) { tab in
+            Picker("Config Type", selection: $viewModel.selectedTab) {
+                ForEach(EditorViewModel.ConfigTab.allCases, id: \.self) { tab in
                     Text(tab.title).tag(tab)
                 }
             }
             .pickerStyle(.segmented)
             .padding(.bottom, 24)
 
-            switch model.selectedTab {
+            switch viewModel.selectedTab {
             case .structure:
-                StructureConfigView(model: model)
+                StructureConfigView(viewModel: viewModel)
             case .tyre:
-                TyreConfigView(model: model, previewedTyre: $previewedTyre)
+                TyreConfigView(viewModel: viewModel)
             case .color:
-                ColorConfigView(model: model)
+                ColorConfigView(viewModel: viewModel)
             }
         }
         .padding(.top, 32)
@@ -38,5 +37,5 @@ struct EditorConfigView: View {
 }
 
 #Preview {
-    EditorConfigView(model: CarEditorModel(), previewedTyre: .constant(nil))
+    EditorConfigView(viewModel: EditorViewModel())
 }

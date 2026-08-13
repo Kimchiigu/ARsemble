@@ -9,11 +9,9 @@ import RealityKit
 import SwiftUI
 
 struct CarViewerView: View {
-    let model: CarEditorModel
+    let viewModel: EditorViewModel
 
-    @Binding var previewedTyre: Tyre?
     @State private var holder = Entity()
-    
     @State private var lighting = Entity()
     @State private var yaw: Double = -0.5
     @State private var pitch: Double = -0.22
@@ -23,23 +21,24 @@ struct CarViewerView: View {
 
     var body: some View {
         let config = CarBuilder.Config(
-            lengthCm: Float(model.lengthCm),
-            widthCm: Float(model.widthCm),
-            heightCm: Float(model.heightCm),
-            bodyColor: model.bodyColor.color,
-            bodyColorId: model.bodyColor.id,
-            tyreIndex: tyres.firstIndex { $0.id == model.tyre.id } ?? 0
+            lengthCm: Float(viewModel.lengthCm),
+            widthCm: Float(viewModel.widthCm),
+            heightCm: Float(viewModel.heightCm),
+            bodyColor: viewModel.bodyColor.color,
+            bodyColorId: viewModel.bodyColor.id,
+            tyreIndex: tyres.firstIndex { $0.id == viewModel.tyre.id } ?? 0
         )
 
         RealityView { content in
             buildLighting(into: lighting)
-            
+
             if !content.entities.contains(where: { $0 === holder }) {
                 content.add(holder)
             }
             if !content.entities.contains(where: { $0 === lighting }) {
                 content.add(lighting)
             }
+
             await CarBuilder.prepareWheelAssets()
             CarBuilder.apply(to: holder, config: config)
             applyTransform()
@@ -81,14 +80,14 @@ struct CarViewerView: View {
                 .padding(.bottom, 10)
         }
         .overlay(alignment: .top) {
-            if let tyre = previewedTyre {
+            if let tyre = viewModel.previewedTyre {
                 TyreStatView(name: tyre.name, stats: tyre.stats)
                     .shadow(radius: 12)
                     .padding(.top, 12)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: previewedTyre)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.previewedTyre)
     }
 
     private func buildLighting(into root: Entity) {
@@ -121,6 +120,6 @@ struct CarViewerView: View {
 }
 
 #Preview {
-    CarViewerView(model: CarEditorModel(), previewedTyre: .constant(nil))
+    CarViewerView(viewModel: EditorViewModel())
         .frame(height: 360)
 }

@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct StructureConfigView: View {
-    @Bindable var model: CarEditorModel
+    @Bindable var viewModel: EditorViewModel
 
     var body: some View {
         VStack {
@@ -24,13 +24,13 @@ struct StructureConfigView: View {
 
     private func binding(for dimension: Dimension) -> Binding<Double> {
         switch dimension {
-        case .length: $model.lengthCm
-        case .width:  $model.widthCm
-        case .height: $model.heightCm
+        case .length: $viewModel.lengthCm
+        case .width:  $viewModel.widthCm
+        case .height: $viewModel.heightCm
         }
     }
 }
 
 #Preview {
-    StructureConfigView(model: CarEditorModel())
+    StructureConfigView(viewModel: EditorViewModel())
 }
