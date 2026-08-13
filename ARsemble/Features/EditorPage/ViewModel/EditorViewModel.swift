@@ -22,18 +22,13 @@ final class EditorViewModel {
         }
     }
 
-    var selectedTab: ConfigTab = .structure {
-        didSet {
-            if selectedTab != oldValue { previewedTyre = nil }
-        }
-    }
+    var selectedTab: ConfigTab = .structure
 
     var lengthCm: Double
     var widthCm: Double
     var heightCm: Double
     var bodyColor: ColorPallete
     var tyre: Tyre
-    var previewedTyre: Tyre?
 
     init(
         lengthCm: Double = 18,
@@ -51,7 +46,6 @@ final class EditorViewModel {
 
     func selectTyre(_ tyre: Tyre) {
         self.tyre = tyre
-        previewedTyre = previewedTyre?.id == tyre.id ? nil : tyre
     }
 
     func selectColor(_ colorPallete: ColorPallete) {
@@ -64,7 +58,6 @@ final class EditorViewModel {
         heightCm = 9
         bodyColor = colorPalletes[4]
         tyre = tyres[0]
-        previewedTyre = nil
         selectedTab = .structure
     }
 }

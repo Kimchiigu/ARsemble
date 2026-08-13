@@ -78,15 +78,6 @@ struct CarViewerView: View {
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 10)
         }
-        .overlay(alignment: .top) {
-            if let tyre = viewModel.previewedTyre {
-                TyreStatView(name: tyre.name, stats: tyre.stats)
-                    .shadow(radius: 12)
-                    .padding(.top, 12)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: viewModel.previewedTyre)
     }
 
     private func applySpec() {
