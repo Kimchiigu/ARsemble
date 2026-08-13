@@ -14,7 +14,7 @@ struct TyreCell: View {
     
     var body: some View {
         VStack(spacing: 8) {
-            Image(systemName: tyre.image)
+            Image(tyre.image)
                 .font(.system(size: 48))
             Text(tyre.name)
                 .font(.subheadline)
