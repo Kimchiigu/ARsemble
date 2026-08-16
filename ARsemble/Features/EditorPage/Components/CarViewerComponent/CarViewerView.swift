@@ -52,8 +52,8 @@ struct CarViewerView: View {
                     guard !isPresenting else { return }
                     let dx = value.translation.width - lastDrag.width
                     let dy = value.translation.height - lastDrag.height
-                    yaw -= Double(dx) * 0.012
-                    pitch -= Double(dy) * 0.012
+                    yaw += Double(dx) * 0.012
+                    pitch += Double(dy) * 0.012
                     pitch = max(-1.2, min(1.2, pitch))
                     lastDrag = value.translation
                 }

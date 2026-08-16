@@ -91,7 +91,7 @@ struct EditorView: View {
                     .frame(width: 20, height: 24)
                     .offset(x: -18)
 
-                Text("Design a car that has a low center of gravity.")
+                Text("Build a car that has a low center of gravity.")
                     .foregroundStyle(Color.white)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)

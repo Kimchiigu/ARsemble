@@ -44,7 +44,7 @@ final class EditorViewModel {
         widthCm: Double = 12,
         heightCm: Double = 9,
         bodyColor: ColorPallete = colorPalletes[4],
-        tyre: Tyre = tyres[0]
+        tyre: Tyre = tyres[1]
     ) {
         self.widthCm = widthCm
         self.heightCm = heightCm
@@ -66,7 +66,7 @@ final class EditorViewModel {
     }
 
     func reset() {
-        tyre = tyres[0]
+        tyre = tyres[1]
         lengthCm = max(18, minLengthCm)
         widthCm = 12
         heightCm = 9
