@@ -24,6 +24,7 @@ struct ResultView: View {
                 Spacer()
 
                 Button {
+                    SoundManager.shared.playSound(named: "click")
                     onBack()
                 } label: {
                     Text("Back to Editor")
