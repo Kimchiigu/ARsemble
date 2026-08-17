@@ -55,6 +55,7 @@ final class EditorViewModel {
     }
 
     func selectTyre(_ tyre: Tyre) {
+        SoundManager.shared.playSound(named: "click")
         self.tyre = tyre
         if lengthCm < minLengthCm {
             lengthCm = minLengthCm
@@ -62,10 +63,12 @@ final class EditorViewModel {
     }
 
     func selectColor(_ colorPallete: ColorPallete) {
+        SoundManager.shared.playSound(named: "click")
         bodyColor = colorPallete
     }
 
     func reset() {
+        SoundManager.shared.playSound(named: "click")
         tyre = tyres[1]
         lengthCm = max(18, minLengthCm)
         widthCm = 12

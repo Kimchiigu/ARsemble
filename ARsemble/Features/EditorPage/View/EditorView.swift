@@ -103,6 +103,7 @@ struct EditorView: View {
             Spacer()
 
             Button {
+                SoundManager.shared.playSound(named: "click")
                 showResetAlert = true
             } label: {
                 Text("Reset to Default")
@@ -114,6 +115,7 @@ struct EditorView: View {
             .glassEffect()
 
             Button {
+                SoundManager.shared.playSound(named: "confirm")
                 startCinematic()
             } label: {
                 Text("Ready")
