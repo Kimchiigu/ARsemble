@@ -38,9 +38,29 @@ final class SurfaceScanDriver:
     @Published var finishPlaced =
         false
 
+    /// True while the "confirm finish marker" popup is showing.
+    @Published var showFinishConfirm =
+        false
+
+    /// True once the player confirms the finish marker; the car drives after this.
+    @Published var finishConfirmed =
+        false
+
     @Published var didSucceed =
         false
-    
+
+    /// True while the "confirm car placement" popup is showing.
+    @Published var showPlacementConfirm =
+        false
+
+    /// True once the car has been dragged onto the surface and confirmed.
+    @Published var carPlacementConfirmed =
+        false
+
+    /// True after the first tap places the car (then it can be dragged).
+    @Published var carSpawnedForPlacement =
+        false
+
 
 
     // ========================================================
@@ -81,6 +101,9 @@ final class SurfaceScanDriver:
             .registerSystem()
 
         ObstacleDetectionSystem
+            .registerSystem()
+
+        CarSpawnSystem
             .registerSystem()
 
         CarDriveSystem
@@ -210,7 +233,7 @@ final class SurfaceScanDriver:
             return
         }
 
-        guard !component.targetLocked else {
+        guard !finishPlaced else {
             return
         }
 
@@ -234,10 +257,9 @@ final class SurfaceScanDriver:
                     result.worldTransform.columns.3.z
                 )
 
-            mutate { component in
-                component.requestedTargetPoint =
-                    point
-            }
+            requestNewTarget(
+                point
+            )
 
             return
         }
@@ -273,24 +295,61 @@ final class SurfaceScanDriver:
             return
         }
 
-        mutate { component in
-            component.requestedTargetPoint =
-                point
-        }
+        requestNewTarget(
+            point
+        )
     }
     
     func selectTarget(
         at worldPoint: SIMD3<Float>
     ) {
 
-        guard !targetLocked else {
+        // Allow re-picking a new target until the finish is actually placed.
+        guard !finishPlaced else {
             return
         }
+
+        requestNewTarget(
+            worldPoint
+        )
+    }
+
+
+    /// Clears the previous target/finish state and requests a fresh target at
+    /// the given world point. Lets the user tap a different spot when the first
+    /// pick had no elevation, without needing a full rescan.
+    private func requestNewTarget(
+        _ point: SIMD3<Float>
+    ) {
+
+        targetLocked =
+            false
+
+        obstacleDetected =
+            false
 
         mutate { component in
 
             component.requestedTargetPoint =
-                worldPoint
+                point
+
+            component.targetLocked =
+                false
+
+            component.targetCenter =
+                nil
+
+            component.finishTarget =
+                nil
+
+            component.successHeight =
+                nil
+
+            component.finishFrozen =
+                false
+
+            component.settleElapsed =
+                0
         }
     }
 
@@ -377,6 +436,157 @@ final class SurfaceScanDriver:
 
 
     // ========================================================
+    // MARK: Car placement (drag to fit)
+    // ========================================================
+
+    /// FIRST tap on the surface places the car. After this, dragging repositions
+    /// it. Shows the "drag to position" hint.
+    func placeCar(
+        at screenPoint: CGPoint
+    ) {
+
+        guard
+            let component =
+                scanRoot.components[
+                    SurfaceScanComponent.self
+                ],
+            component.lockedPlaneID != nil,
+            !carPlacementConfirmed,
+            !carSpawnedForPlacement
+        else {
+            return
+        }
+
+        guard
+            let point =
+                surfacePoint(at: screenPoint)
+        else {
+            return
+        }
+
+        mutate { $0.carDragPoint = point }
+
+        carSpawnedForPlacement = true
+
+        statusText =
+            "Drag the car to position it, then release to confirm."
+    }
+
+    /// Rotate the placed car (two-finger rotate) while positioning it.
+    func rotateCar(
+        byRadians delta: Float
+    ) {
+
+        guard
+            carSpawnedForPlacement,
+            !carPlacementConfirmed
+        else {
+            return
+        }
+
+        mutate { component in
+            component.carPlacementYaw += delta
+        }
+    }
+
+    /// Reposition the already-placed car while dragging.
+    func dragCar(
+        at screenPoint: CGPoint
+    ) {
+
+        guard
+            carSpawnedForPlacement,
+            !carPlacementConfirmed
+        else {
+            return
+        }
+
+        guard
+            let point =
+                surfacePoint(at: screenPoint)
+        else {
+            return
+        }
+
+        mutate { $0.carDragPoint = point }
+    }
+
+    /// Raycast a screen point onto the detected (or estimated) horizontal plane.
+    private func surfacePoint(
+        at screenPoint: CGPoint
+    ) -> SIMD3<Float>? {
+
+        guard let arView else {
+            return nil
+        }
+
+        let hit =
+            arView.raycast(
+                from: screenPoint,
+                allowing: .existingPlaneGeometry,
+                alignment: .horizontal
+            ).first
+            ??
+            arView.raycast(
+                from: screenPoint,
+                allowing: .estimatedPlane,
+                alignment: .horizontal
+            ).first
+
+        guard let hit else {
+            return nil
+        }
+
+        return SIMD3<Float>(
+            hit.worldTransform.columns.3.x,
+            hit.worldTransform.columns.3.y,
+            hit.worldTransform.columns.3.z
+        )
+    }
+
+    /// Finger lifted after dragging — ask the player to confirm placement.
+    func endCarDrag() {
+
+        guard !carPlacementConfirmed else {
+            return
+        }
+
+        guard
+            let component =
+                scanRoot.components[
+                    SurfaceScanComponent.self
+                ],
+            component.carDragPoint != nil
+        else {
+            return
+        }
+
+        showPlacementConfirm = true
+    }
+
+    /// Confirm placement and move on to obstacle selection.
+    func confirmPlacement() {
+
+        showPlacementConfirm = false
+        carPlacementConfirmed = true
+
+        mutate { component in
+            component.carPlacementConfirmed = true
+            // Remember where the car sits, so Retry Drive can bring it back.
+            component.carInitialPosition = component.carDragPoint
+        }
+
+        statusText =
+            "Car placed. Now tap the TOP of the obstacle."
+    }
+
+    /// Dismiss the popup and keep adjusting the car.
+    func cancelPlacement() {
+        showPlacementConfirm = false
+    }
+
+
+    // ========================================================
     // MARK: Car
     // ========================================================
 
@@ -409,6 +619,11 @@ final class SurfaceScanDriver:
         obstacleDetected = false
         finishPlaced = false
         didSucceed = false
+        showPlacementConfirm = false
+        carPlacementConfirmed = false
+        carSpawnedForPlacement = false
+        showFinishConfirm = false
+        finishConfirmed = false
 
         statusText =
             "Move device slowly to scan a floor or table…"
@@ -449,6 +664,24 @@ final class SurfaceScanDriver:
 
             component.carSpawnPoint =
                 nil
+
+            component.carDragPoint =
+                nil
+
+            component.carPlacementYaw =
+                0
+
+            component.carPlacementConfirmed =
+                false
+
+            component.finishConfirmed =
+                false
+
+            component.carInitialPosition =
+                nil
+
+            component.retryDriveRequested =
+                false
         }
 
 
@@ -503,6 +736,66 @@ final class SurfaceScanDriver:
 
         finishPlaced =
             true
+
+        // Ask the player to confirm the marker before Arlo drives.
+        if !finishConfirmed {
+            showFinishConfirm = true
+            statusText =
+                "Finish flag set. Is this the right spot?"
+        }
+    }
+
+
+    /// Confirm the finish marker — Arlo can now drive.
+    func confirmFinish() {
+
+        showFinishConfirm = false
+        finishConfirmed = true
+
+        mutate { component in
+            component.finishConfirmed = true
+            // Freeze the marker so it can't drift after being confirmed.
+            component.finishFrozen = true
+        }
+
+        statusText =
+            "Arlo is driving to the finish!"
+    }
+
+
+    /// Reject the finish marker and let the player pick the obstacle top again.
+    func retryFinish() {
+
+        showFinishConfirm = false
+        finishPlaced = false
+        obstacleDetected = false
+
+        mutate { component in
+            component.requestedTargetPoint = nil
+            component.targetCenter = nil
+            component.targetLocked = false
+            component.finishTarget = nil
+            component.successHeight = nil
+            component.finishFrozen = false
+            component.settleElapsed = 0
+        }
+
+        statusText =
+            "Tap the top of the obstacle again."
+    }
+
+
+    /// Put the car back at its start position and drive again — no rescan.
+    func retryDrive() {
+
+        didSucceed = false
+
+        mutate { component in
+            component.retryDriveRequested = true
+        }
+
+        statusText =
+            "Arlo is driving to the finish!"
     }
 
 

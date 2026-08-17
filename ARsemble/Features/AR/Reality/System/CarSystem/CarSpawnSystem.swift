@@ -4,6 +4,12 @@
 //
 //  Created by Reynard Amadeus  on 15/08/26.
 //
+//  Handles the CAR PLACEMENT phase: once a surface is locked, the player drags
+//  a (kinematic) car around the surface to check it fits. When they confirm,
+//  the car is handed to the physics simulation (dynamic) and CarDriveSystem
+//  takes over once a finish point exists.
+//
+
 import RealityKit
 import ARKit
 
@@ -37,7 +43,6 @@ struct CarSpawnSystem: System {
 
 
             guard
-                component.spawnCarRequested,
                 let anchor =
                     component.surfaceAnchor
             else {
@@ -45,80 +50,130 @@ struct CarSpawnSystem: System {
             }
 
 
-            // Remove previous car.
-            anchor.children
-                .filter {
-                    $0.name == "VirtualCar"
-                }
-                .forEach {
-                    $0.removeFromParent()
-                }
+            let existingCar =
+                anchor.children.first(
+                    where: {
+                        $0.name == "VirtualCar"
+                    }
+                ) as? ModelEntity
 
 
-            let car =
-                EntityFactory.createCar(
-                    length: 0.12,
-                    width: 0.07,
-                    height: 0.04,
-                    color: .red
+            if !component.carPlacementConfirmed {
+
+                // ----------------------------------------------
+                // PLACEMENT: follow the drag point (kinematic).
+                // ----------------------------------------------
+
+                guard
+                    let dragPoint =
+                        component.carDragPoint
+                else {
+                    continue
+                }
+
+                let car =
+                    existingCar ??
+                    makePlacementCar(in: anchor)
+
+                // Sit just above the surface at the drag point.
+                car.setPosition(
+                    dragPoint +
+                    SIMD3<Float>(0, 0.02, 0),
+                    relativeTo: nil
                 )
 
-
-            car.name =
-                "VirtualCar"
-
-
-            // Wire the car's goal to the finish point placed earlier.
-            var carComponent =
-                CarComponent()
-
-            carComponent.target =
-                component.finishTarget
-
-            car.components.set(
-                carComponent
-            )
-
-
-            if let spawn =
-                component.carSpawnPoint {
-
-                car.setPosition(
-                    spawn +
-                    SIMD3<Float>(
-                        0,
-                        0.02,
-                        0
+                // Apply the rotation the user has dialed in.
+                car.setOrientation(
+                    simd_quatf(
+                        angle: component.carPlacementYaw,
+                        axis: SIMD3<Float>(0, 1, 0)
                     ),
                     relativeTo: nil
                 )
 
-            } else {
+            } else if let car = existingCar {
 
-                car.position =
-                    SIMD3<Float>(
-                        0,
-                        0.02,
-                        0
+                // ----------------------------------------------
+                // CONFIRMED phase.
+                // ----------------------------------------------
+
+                // Hand the car to physics once (kinematic -> dynamic).
+                if var body =
+                    car.components[
+                        PhysicsBodyComponent.self
+                    ],
+                    body.mode != .dynamic {
+
+                    body.mode = .dynamic
+                    car.components.set(body)
+
+                    var motion =
+                        car.components[
+                            PhysicsMotionComponent.self
+                        ]
+                        ?? PhysicsMotionComponent()
+
+                    motion.linearVelocity = .zero
+                    motion.angularVelocity = .zero
+                    car.components.set(motion)
+                }
+
+
+                // Retry Drive: put the car back at its start and re-run.
+                if component.retryDriveRequested,
+                   let start = component.carInitialPosition {
+
+                    car.setPosition(
+                        start + SIMD3<Float>(0, 0.02, 0),
+                        relativeTo: nil
                     )
+
+                    var motion =
+                        car.components[
+                            PhysicsMotionComponent.self
+                        ]
+                        ?? PhysicsMotionComponent()
+
+                    motion.linearVelocity = .zero
+                    motion.angularVelocity = .zero
+                    car.components.set(motion)
+
+                    component.retryDriveRequested = false
+                    entity.components.set(component)
+                }
             }
-
-
-            anchor.addChild(
-                car
-            )
-
-
-            component.spawnCarRequested =
-                false
-
-            component.carSpawnPoint =
-                nil
-
-
-            entity.components.set(
-                component
-            )
         }
+    }
+
+
+    /// Builds the car and adds it to the anchor as a KINEMATIC body so it stays
+    /// exactly where it's dragged (no gravity) until placement is confirmed.
+    private func makePlacementCar(
+        in anchor: Entity
+    ) -> ModelEntity {
+
+        let car =
+            EntityFactory.createCar(
+                spec: EntityFactory.placeholderCarSpec()
+            )
+
+        car.name = "VirtualCar"
+
+        car.components.set(
+            CarComponent()
+        )
+
+        if var body =
+            car.components[
+                PhysicsBodyComponent.self
+            ] {
+
+            body.mode = .kinematic
+            car.components.set(body)
+        }
+
+        anchor.addChild(car)
+
+        return car
     }
 }

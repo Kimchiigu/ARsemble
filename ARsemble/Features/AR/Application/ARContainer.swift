@@ -52,6 +52,49 @@ struct ARContainer: UIViewRepresentable {
             tapGesture
         )
 
+
+        // --------------------------------------------------
+        // PAN GESTURE (drag the car during placement)
+        // --------------------------------------------------
+
+        let panGesture =
+            UIPanGestureRecognizer(
+                target:
+                    context.coordinator,
+
+                action:
+                    #selector(
+                        Coordinator.handlePan(_:)
+                    )
+            )
+
+        // One-finger pan; two fingers are reserved for rotation.
+        panGesture.maximumNumberOfTouches = 1
+
+        arView.addGestureRecognizer(
+            panGesture
+        )
+
+
+        // --------------------------------------------------
+        // ROTATION GESTURE (two-finger rotate the car)
+        // --------------------------------------------------
+
+        let rotationGesture =
+            UIRotationGestureRecognizer(
+                target:
+                    context.coordinator,
+
+                action:
+                    #selector(
+                        Coordinator.handleRotate(_:)
+                    )
+            )
+
+        arView.addGestureRecognizer(
+            rotationGesture
+        )
+
         return arView
     }
 
@@ -103,40 +146,25 @@ struct ARContainer: UIViewRepresentable {
                 )
 
 
-            // ==================================================
-            // STATE 1
-            //
-            // No target selected yet.
-            //
-            // First tap selects the obstacle.
-            // ==================================================
+            // PLACEMENT: the first tap places the car on the surface; after
+            // that it's positioned by dragging.
+            if driver.hasLockedSurface,
+               !driver.carPlacementConfirmed {
 
-            if !driver.targetLocked {
-
-                selectTarget(
-                    screenPoint:
-                        screenPoint,
-
-                    arView:
-                        arView,
-
-                    driver:
-                        driver
-                )
+                if !driver.carSpawnedForPlacement {
+                    driver.placeCar(at: screenPoint)
+                }
 
                 return
             }
 
+            // TARGET: once the car is placed, taps pick the obstacle top,
+            // until the finish is set (then the car drives itself).
+            guard !driver.finishPlaced else {
+                return
+            }
 
-            // ==================================================
-            // STATE 2
-            //
-            // Target already selected.
-            //
-            // Second tap drops the car.
-            // ==================================================
-
-            spawnCar(
+            selectTarget(
                 screenPoint:
                     screenPoint,
 
@@ -146,6 +174,83 @@ struct ARContainer: UIViewRepresentable {
                 driver:
                     driver
             )
+        }
+
+
+        // ==================================================
+        // MARK: Pan (drag the car onto the surface)
+        // ==================================================
+
+        @objc
+        func handlePan(
+            _ gesture: UIPanGestureRecognizer
+        ) {
+
+            guard
+                let arView = arView,
+                let driver = driver
+            else {
+                return
+            }
+
+            // Only while positioning an already-placed car (tap places first).
+            guard
+                driver.hasLockedSurface,
+                !driver.carPlacementConfirmed,
+                driver.carSpawnedForPlacement
+            else {
+                return
+            }
+
+            let screenPoint =
+                gesture.location(in: arView)
+
+            switch gesture.state {
+
+            case .began, .changed:
+                driver.dragCar(at: screenPoint)
+
+            case .ended, .cancelled, .failed:
+                driver.endCarDrag()
+
+            default:
+                break
+            }
+        }
+
+
+        // ==================================================
+        // MARK: Rotate (two-finger rotate the car)
+        // ==================================================
+
+        @objc
+        func handleRotate(
+            _ gesture: UIRotationGestureRecognizer
+        ) {
+
+            guard let driver = driver else {
+                return
+            }
+
+            // Only while positioning an already-placed car.
+            guard
+                driver.hasLockedSurface,
+                !driver.carPlacementConfirmed,
+                driver.carSpawnedForPlacement
+            else {
+                return
+            }
+
+            if gesture.state == .changed {
+
+                // Apply the incremental rotation, then reset so the next
+                // callback gives us the next delta.
+                driver.rotateCar(
+                    byRadians: Float(gesture.rotation)
+                )
+
+                gesture.rotation = 0
+            }
         }
 
 
@@ -235,87 +340,6 @@ struct ARContainer: UIViewRepresentable {
             driver.selectTarget(
                 at:
                     screenPoint
-            )
-        }
-
-
-        // ==================================================
-        // MARK: Car Spawn
-        // ==================================================
-
-        private func spawnCar(
-            screenPoint:
-                CGPoint,
-
-            arView:
-                ARView,
-
-            driver:
-                SurfaceScanDriver
-        ) {
-
-            // Car should be placed on the scanned surface.
-            //
-            // We therefore try existing horizontal geometry first.
-
-            if let result =
-                arView.raycast(
-                    from:
-                        screenPoint,
-
-                    allowing:
-                        .existingPlaneGeometry,
-
-                    alignment:
-                        .horizontal
-                ).first {
-
-                let worldPoint =
-                    worldPosition(
-                        from:
-                            result
-                    )
-
-                driver.spawnCar(
-                    at:
-                        worldPoint
-                )
-
-                return
-            }
-
-
-            // Fallback to estimated horizontal plane.
-
-            if let result =
-                arView.raycast(
-                    from:
-                        screenPoint,
-
-                    allowing:
-                        .estimatedPlane,
-
-                    alignment:
-                        .horizontal
-                ).first {
-
-                let worldPoint =
-                    worldPosition(
-                        from:
-                            result
-                    )
-
-                driver.spawnCar(
-                    at:
-                        worldPoint
-                )
-
-                return
-            }
-
-
-            driver.warn(
-                "Cannot find the surface. Point the camera at the table."
             )
         }
 

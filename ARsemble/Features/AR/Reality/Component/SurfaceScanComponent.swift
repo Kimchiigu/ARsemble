@@ -36,6 +36,28 @@ struct SurfaceScanComponent: Component {
     var resetRequested: Bool = false
 
 
+    // MARK: - Car placement (drag to fit, before obstacle selection)
+
+    /// World point the user is currently dragging the car to.
+    var carDragPoint: SIMD3<Float>?
+
+    /// Yaw (radians) the user has rotated the car to during placement.
+    var carPlacementYaw: Float = 0
+
+    /// True once the player confirms the car fits the surface.
+    var carPlacementConfirmed: Bool = false
+
+    /// Where the car was placed — used to reset it for "Retry Drive".
+    var carInitialPosition: SIMD3<Float>?
+
+    /// Set to put the car back at its start position and re-run the drive.
+    var retryDriveRequested: Bool = false
+
+    /// True once the player confirms the finish marker position. The car only
+    /// drives after this.
+    var finishConfirmed: Bool = false
+
+
     // MARK: - Target Selection
 
     /// World-space point selected by the user.

@@ -593,9 +593,9 @@ struct ObstacleDetectionSystem: System {
                 as? ModelEntity
             )
             ??
-            makeFinishMarker(
-                in:
-                    root
+        EntityFactory.createFinishMarker(
+                in: root,
+                finishName: finishName
             )
 
 
@@ -660,91 +660,7 @@ struct ObstacleDetectionSystem: System {
     }
 
 
-    // ============================================================
-    // MARK: Finish marker
-    // ============================================================
-
-    private func makeFinishMarker(
-        in root:
-            Entity
-    ) -> ModelEntity {
-
-        let core =
-            ModelEntity(
-                mesh:
-                    .generateSphere(
-                        radius:
-                            0.02
-                    ),
-
-                materials:
-                    [
-                        UnlitMaterial(
-                            color:
-                                .systemGreen
-                        )
-                    ]
-            )
-
-
-        core.name =
-            finishName
-
-
-        let halo =
-            ModelEntity(
-                mesh:
-                    .generateSphere(
-                        radius:
-                            0.045
-                    ),
-
-                materials:
-                    [
-                        UnlitMaterial(
-                            color:
-                                UIColor
-                                    .systemGreen
-                                    .withAlphaComponent(
-                                        0.28
-                                    )
-                        )
-                    ]
-            )
-
-
-        core.addChild(
-            halo
-        )
-
-
-        let light =
-            PointLight()
-
-
-        light.light.color =
-            .green
-
-        light.light.intensity =
-            8000
-
-        light.light.attenuationRadius =
-            0.6
-
-
-        core.addChild(
-            light
-        )
-
-
-        root.addChild(
-            core
-        )
-
-
-        return core
-    }
-
+   
 
     // ============================================================
     // MARK: Scene helpers

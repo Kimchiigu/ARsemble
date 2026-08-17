@@ -67,13 +67,20 @@ struct SurfaceLockSystem: System {
             }
             else {
 
+                // Keep the surface pinned to the largest (base) plane until
+                // the user commits a target, so the obstacle stays above y=0.
+                if !component.targetLocked {
+                    relockIfLargerPlaneAppeared(
+                        &component,
+                        scene:
+                            context.scene
+                    )
+                }
+
                 follow(
                     &component
                 )
-
-                serviceSpawnRequest(
-                    &component
-                )
+                // Car spawning is handled by CarSpawnSystem.
             }
 
 
@@ -96,7 +103,9 @@ struct SurfaceLockSystem: System {
 
         guard
             let plane =
-                component.detectedPlanes.first
+                largestPlane(
+                    component.detectedPlanes
+                )
         else {
             return
         }
@@ -142,7 +151,7 @@ struct SurfaceLockSystem: System {
 
         component.presenter?
             .statusText =
-            "Surface locked. Tap the TOP of the obstacle."
+            "Tap anywhere on the table to place Arlo’s car"
     }
 
 
@@ -200,112 +209,6 @@ struct SurfaceLockSystem: System {
 
         component.lockedExtent =
             current
-    }
-
-
-    // MARK: Spawn
-
-    private func serviceSpawnRequest(
-        _ component:
-            inout SurfaceScanComponent
-    ) {
-
-        guard
-            component.spawnCarRequested,
-
-            let anchor =
-                component.surfaceAnchor
-        else {
-            return
-        }
-
-
-        anchor.children
-            .filter {
-                $0.name ==
-                    "VirtualCar"
-            }
-            .forEach {
-                $0.removeFromParent()
-            }
-
-
-        let car =
-            EntityFactory.createCar(
-                length:
-                    0.12,
-
-                width:
-                    0.07,
-
-                height:
-                    0.04,
-
-                color:
-                    .red
-            )
-
-
-        car.name =
-            "VirtualCar"
-
-
-        // Wire the car's goal to the finish point placed during scanning.
-        // Without this, CarDriveSystem has no target and the car never moves.
-        var carComponent =
-            CarComponent()
-
-        carComponent.target =
-            component.finishTarget
-
-        car.components.set(
-            carComponent
-        )
-
-
-        anchor.addChild(
-            car
-        )
-
-
-        let restOffset =
-            SIMD3<Float>(
-                0,
-                0.02,
-                0
-            )
-
-
-        if let spawn =
-            component.carSpawnPoint {
-
-            car.setPosition(
-                spawn +
-                    restOffset,
-
-                relativeTo:
-                    nil
-            )
-
-        } else {
-
-            car.position =
-                restOffset
-        }
-
-
-        component.spawnCarRequested =
-            false
-
-        component.carSpawnPoint =
-            nil
-
-        component.presenter?
-            .didSucceed = false
-
-        component.presenter?
-            .statusText =
-            "Car placed — driving to the finish."
     }
 
 
@@ -447,5 +350,114 @@ struct SurfaceLockSystem: System {
             plane.planeExtent.width,
             plane.planeExtent.height
         )
+    }
+
+
+    // MARK: Plane selection
+
+    /// The biggest horizontal plane — the base surface (table/floor) the car
+    /// sits on. Small planes on top of the obstacle won't win, so the obstacle
+    /// stays ABOVE the y=0 reference used for elevation.
+    private func largestPlane(
+        _ planes: [ARPlaneAnchor]
+    ) -> ARPlaneAnchor? {
+
+        planes.max(
+            by: {
+                planeArea($0) <
+                    planeArea($1)
+            }
+        )
+    }
+
+    private func planeArea(
+        _ plane: ARPlaneAnchor
+    ) -> Float {
+
+        plane.planeExtent.width *
+        plane.planeExtent.height
+    }
+
+
+    // MARK: Re-lock
+
+    /// Until a target is committed, keep the surface pinned to the LARGEST
+    /// plane. Fixes the camera-order problem where a small plane on the
+    /// obstacle is detected first and wrongly becomes the y=0 surface.
+    private func relockIfLargerPlaneAppeared(
+        _ component:
+            inout SurfaceScanComponent,
+
+        scene:
+            RealityKit.Scene
+    ) {
+
+        guard
+            let best =
+                largestPlane(
+                    component.detectedPlanes
+                ),
+
+            best.identifier !=
+                component.lockedPlaneID
+        else {
+            return
+        }
+
+
+        let currentArea =
+            component.detectedPlanes
+                .first(
+                    where: {
+                        $0.identifier ==
+                            component.lockedPlaneID
+                    }
+                )
+                .map(planeArea) ?? 0
+
+
+        // Only switch for a meaningfully bigger plane (avoids flip-flopping).
+        guard
+            planeArea(best) >
+                currentArea * 1.2
+        else {
+            return
+        }
+
+
+        component.surfaceAnchor?
+            .removeFromParent()
+
+
+        let anchor =
+            AnchorEntity(
+                anchor:
+                    best
+            )
+
+        scene.addAnchor(
+            anchor
+        )
+
+        PhysicsFloor.attach(
+            to:
+                anchor,
+
+            for:
+                best
+        )
+
+
+        component.surfaceAnchor =
+            anchor
+
+        component.lockedPlaneID =
+            best.identifier
+
+        component.lockedExtent =
+            extent(
+                of:
+                    best
+            )
     }
 }
