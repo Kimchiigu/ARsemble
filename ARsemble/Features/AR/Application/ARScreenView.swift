@@ -9,10 +9,27 @@ import SwiftUI
 struct SurfaceScannerView: View {
 
     /// Owns the ARSession + scanRoot entity and publishes UI state.
-    @StateObject private var driver = SurfaceScanDriver()
+    @StateObject private var driver: SurfaceScanDriver
+
+    /// Called when the level is completed — marks progress and leaves AR.
+    private let onFinish: () -> Void
 
     /// Used by "Rebuild it" to go back to the editor page.
     @Environment(\.dismiss) private var dismiss
+
+    /// Stack navigation (used to pop back to the editor deterministically).
+    @Environment(Router.self) private var router
+
+    /// True while the post-level summary page is covering the screen.
+    @State private var showSummary = false
+
+    init(
+        carSpec: CarSpecComponent = EntityFactory.placeholderCarSpec(),
+        onFinish: @escaping () -> Void = {}
+    ) {
+        _driver = StateObject(wrappedValue: SurfaceScanDriver(carSpec: carSpec))
+        self.onFinish = onFinish
+    }
 
     var body: some View {
 
@@ -89,7 +106,7 @@ struct SurfaceScannerView: View {
                     },
                     onRebuild: {
                         driver.cancelPlacement()
-                        dismiss()   // back to the editor page
+                        dismiss()   // back to the editor page (car config kept)
                     }
                 )
             }
@@ -106,13 +123,25 @@ struct SurfaceScannerView: View {
                 )
             }
 
-            // Success.
+            // Success — celebrate, then "Finish" opens the summary page.
             if driver.didSucceed {
                 InstructionOverlayView(
                     image: "arlo-success"
                 )
             }
-            
+
+        }
+        .fullScreenCover(isPresented: $showSummary) {
+            SummaryPageView(
+                onFinish: {
+                    showSummary = false
+                    onFinish()
+                },
+                onRebuild: {
+                    showSummary = false
+                    router.pop()   // back to the editor page
+                }
+            )
         }
         .animation(
             .easeInOut(duration: 0.2),
@@ -122,6 +151,15 @@ struct SurfaceScannerView: View {
             .easeInOut(duration: 0.2),
             value: driver.showFinishConfirm
         )
+        .animation(
+            .easeInOut(duration: 0.2),
+            value: driver.didSucceed
+        )
+        // Warm the usdz wheel assets so the editor's tyres (not procedural
+        // wheels) are used when the car spawns.
+        .task {
+            await CarBuilder.prepareWheelAssets()
+        }
     }
 
 
@@ -131,7 +169,7 @@ struct SurfaceScannerView: View {
         VStack(spacing: 12) {
             HStack(spacing: 16) {
                 Button {
-                    
+                    dismiss()   // back to the editor page
                 } label: {
                     Label("Rebuild Car", systemImage: "wrench.adjustable.fill")
                         .font(.title2)
@@ -146,7 +184,7 @@ struct SurfaceScannerView: View {
                 Spacer()
 
                 // Retry the drive (car back to start) once it's actually driving.
-                if driver.finishConfirmed {
+                if driver.finishConfirmed && !driver.didSucceed {
                     Button {
                         driver.retryDrive()
                     } label: {
@@ -156,6 +194,22 @@ struct SurfaceScannerView: View {
                             .padding(.horizontal, 20)
                             .padding(.vertical, 16)
                             .background(.orange)
+                            .clipShape(Capsule())
+                            .foregroundStyle(.white)
+                    }
+                }
+
+                // Finish → summary page, once Arlo has reached the finish.
+                if driver.didSucceed {
+                    Button {
+                        showSummary = true
+                    } label: {
+                        Label("Finish", systemImage: "flag.checkered")
+                            .font(.title2)
+                            .bold()
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
+                            .background(.green)
                             .clipShape(Capsule())
                             .foregroundStyle(.white)
                     }
@@ -170,4 +224,5 @@ struct SurfaceScannerView: View {
 
 #Preview {
     SurfaceScannerView()
+        .environment(Router())
 }

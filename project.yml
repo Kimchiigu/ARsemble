@@ -26,6 +26,9 @@ targets:
         NSCameraUsageDescription: "Please allow camera access to this app for Augmented Reality Feature"
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        "UISupportedInterfaceOrientations~ipad":
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
 
     scheme:
       testTargets: []

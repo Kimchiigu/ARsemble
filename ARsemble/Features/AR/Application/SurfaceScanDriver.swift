@@ -49,6 +49,10 @@ final class SurfaceScanDriver:
     @Published var didSucceed =
         false
 
+    /// True once the car has toppled over (centre of gravity too high).
+    @Published var didTip =
+        false
+
     /// True while the "confirm car placement" popup is showing.
     @Published var showPlacementConfirm =
         false
@@ -71,6 +75,11 @@ final class SurfaceScanDriver:
         Entity()
 
 
+    /// The car built in the editor, spawned by CarSpawnSystem.
+    let carSpec:
+        CarSpecComponent
+
+
     private weak var arView:
         ARView?
 
@@ -79,7 +88,9 @@ final class SurfaceScanDriver:
     // MARK: Init
     // ========================================================
 
-    override init() {
+    init(carSpec: CarSpecComponent = EntityFactory.placeholderCarSpec()) {
+
+        self.carSpec = carSpec
 
         super.init()
 
@@ -115,6 +126,9 @@ final class SurfaceScanDriver:
 
         component.presenter =
             self
+
+        component.carSpec =
+            carSpec
 
         scanRoot.components.set(
             component
@@ -177,9 +191,14 @@ final class SurfaceScanDriver:
             false
 
 
-        arView.debugOptions.insert(
-            .showSceneUnderstanding
-        )
+        // Make the reconstructed LiDAR mesh a real collider, so the car can
+        // ride/climb ANY real surface (ramps, books, bags) reliably — not just
+        // our per-chunk obstacle colliders.
+        //
+        // NOTE: no `.showSceneUnderstanding` debug option here — it renders the
+        // reconstruction mesh OVER the camera feed, which is one cause of the
+        // "dark AR screen" symptom.
+        arView.environment.sceneUnderstanding.options.insert(.collision)
 
 
         let root =
@@ -587,6 +606,60 @@ final class SurfaceScanDriver:
 
 
     // ========================================================
+    // MARK: Terrain height (used by CarDriveSystem)
+    // ========================================================
+
+    /// World-space downward raycast onto the real (estimated) surface — the
+    /// SAME ARKit mechanism placement uses, which reliably follows an incline.
+    /// Returns the surface height AND its normal (for tilt / tipping).
+    func surfaceInfo(
+        under worldPoint: SIMD3<Float>
+    ) -> (height: Float, normal: SIMD3<Float>)? {
+
+        guard let arView else {
+            return nil
+        }
+
+        let origin =
+            SIMD3<Float>(
+                worldPoint.x,
+                worldPoint.y + 0.5,
+                worldPoint.z
+            )
+
+        let query =
+            ARRaycastQuery(
+                origin: origin,
+                direction: SIMD3<Float>(0, -1, 0),
+                allowing: .estimatedPlane,
+                alignment: .any
+            )
+
+        guard
+            let result = arView.session.raycast(query).first
+        else {
+            return nil
+        }
+
+        let t = result.worldTransform
+
+        let height = t.columns.3.y
+
+        // The estimated plane's Y axis is its surface normal.
+        let normal =
+            simd_normalize(
+                SIMD3<Float>(
+                    t.columns.1.x,
+                    t.columns.1.y,
+                    t.columns.1.z
+                )
+            )
+
+        return (height, normal)
+    }
+
+
+    // ========================================================
     // MARK: Car
     // ========================================================
 
@@ -619,6 +692,7 @@ final class SurfaceScanDriver:
         obstacleDetected = false
         finishPlaced = false
         didSucceed = false
+        didTip = false
         showPlacementConfirm = false
         carPlacementConfirmed = false
         carSpawnedForPlacement = false
@@ -789,6 +863,7 @@ final class SurfaceScanDriver:
     func retryDrive() {
 
         didSucceed = false
+        didTip = false
 
         mutate { component in
             component.retryDriveRequested = true
@@ -810,6 +885,21 @@ final class SurfaceScanDriver:
 
         statusText =
             "Success! The car reached the finish."
+    }
+
+
+    /// The car's centre of gravity was too high for the incline and it toppled.
+    func reportTipOver() {
+
+        guard !didTip else {
+            return
+        }
+
+        didTip =
+            true
+
+        statusText =
+            "The car tipped over! Its centre of gravity is too high — build it lower and wider."
     }
 
 

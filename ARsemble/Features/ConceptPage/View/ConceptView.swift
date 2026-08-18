@@ -9,6 +9,9 @@
 import SwiftUI
 
 struct ConceptView: View {
+    /// "Build" on the last page and "Skip Lesson" both continue to Step.
+    var onFinish: () -> Void = {}
+
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = ConceptViewModel()
 
@@ -134,7 +137,7 @@ struct ConceptView: View {
 
                 if currentPage < totalPages - 1 {
                     NextButton(title: "Skip Lesson") {
-                        dismiss()
+                        onFinish()
                     }
                 }
             }
@@ -170,6 +173,8 @@ struct ConceptView: View {
             withAnimation(.easeInOut(duration: 0.25)) {
                 currentPage += 1
             }
+        } else {
+            onFinish()
         }
     }
 

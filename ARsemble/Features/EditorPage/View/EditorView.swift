@@ -8,21 +8,20 @@
 import SwiftUI
 
 struct EditorView: View {
+    /// Called with the built car once the "Ready" cinematic covers the
+    /// screen — hands off to the AR screen.
+    var onReady: (CarSpecComponent) -> Void = { _ in }
+
     @State private var viewModel = EditorViewModel()
     @State private var showResetAlert = false
     @State private var phase: Phase = .editing
     @State private var curtain = false
 
-    private enum Phase { case editing, presenting, result }
+    private enum Phase { case editing, presenting }
 
     var body: some View {
         ZStack {
             editorContent
-
-            if phase == .result {
-                ResultView(onBack: backToEditor)
-                    .transition(.opacity)
-            }
 
             Color(.systemBackground)
                 .ignoresSafeArea()
@@ -143,21 +142,14 @@ struct EditorView: View {
             withAnimation(.easeInOut(duration: 0.45)) { curtain = true }
             try? await Task.sleep(for: .seconds(0.5))
             if Task.isCancelled { return }
-            phase = .result
-            try? await Task.sleep(for: .seconds(0.05))
-            withAnimation(.easeInOut(duration: 0.45)) { curtain = false }
-        }
-    }
-
-    private func backToEditor() {
-        withAnimation(.easeInOut(duration: 0.45)) { curtain = true }
-
-        Task {
-            try? await Task.sleep(for: .seconds(0.5))
+            // Screen fully covered — hand the built car to AR.
+            onReady(viewModel.carSpec)
+            try? await Task.sleep(for: .seconds(0.6))
             if Task.isCancelled { return }
-            withAnimation(.easeInOut(duration: 0.55)) { phase = .editing }
-            try? await Task.sleep(for: .seconds(0.1))
-            withAnimation(.easeInOut(duration: 0.45)) { curtain = false }
+            // Quietly restore the editor (hidden behind AR) so it is in an
+            // editable state when the player returns via "Rebuild Car".
+            phase = .editing
+            curtain = false
         }
     }
 }

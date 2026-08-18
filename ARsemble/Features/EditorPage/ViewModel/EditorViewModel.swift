@@ -7,6 +7,7 @@
 
 import Foundation
 import Observation
+import UIKit
 
 @Observable
 final class EditorViewModel {
@@ -32,6 +33,19 @@ final class EditorViewModel {
 
     var tyreIndex: Int {
         tyres.firstIndex { $0.id == tyre.id } ?? 0
+    }
+
+    /// The car as currently configured, ready to be built in 3D/AR
+    /// (see CarBuilder / EntityFactory.createCar).
+    var carSpec: CarSpecComponent {
+        CarSpecComponent(
+            lengthCm: Float(lengthCm),
+            widthCm: Float(widthCm),
+            heightCm: Float(heightCm),
+            bodyColor: UIColor(bodyColor.color),
+            bodyColorId: bodyColor.id,
+            tyreIndex: tyreIndex
+        )
     }
 
     var minLengthCm: Double {

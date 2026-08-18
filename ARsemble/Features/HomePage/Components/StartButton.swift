@@ -8,10 +8,10 @@
 import SwiftUI
 
 struct StartButton: View {
+    var action: () -> Void = {}
+
     var body: some View {
-        Button(action: {
-            // Action to perform when the button is tapped
-        }) {
+        Button(action: action) {
             Text("Start Learning")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundColor(.white)

@@ -33,13 +33,17 @@ struct ObstacleDetectionSystem: System {
     private let searchRadius: Float = 0.35
 
     /// Height above the locked surface that counts as actual
-    /// elevated geometry.
-    private let minimumHeight: Float = 0.035
+    /// elevated geometry. Kept low so a thin incline (a book) qualifies.
+    private let minimumHeight: Float = 0.02
 
-    /// Once elevated geometry has been found, neighboring mesh
-    /// chunks within this distance are considered part of the
-    /// same physical obstacle.
-    private let clusterRadius: Float = 0.30
+    /// Tight radius around the exact tapped point used to estimate the finish
+    /// height. Much smaller than searchRadius so a wall/object BEHIND the target
+    /// can't drag the finish up.
+    private let finishRadius: Float = 0.08
+
+    /// Anything taller than this above the plane is treated as background
+    /// (a wall, furniture) and ignored when placing the finish.
+    private let maxFinishHeight: Float = 0.40
 
     /// Finish marker sits slightly above the real LiDAR vertex.
     private let finishOffset: Float = 0.015
@@ -409,153 +413,31 @@ struct ObstacleDetectionSystem: System {
 
 
         // --------------------------------------------------------
-        // Find all obstacle chunks near the user's target.
+        // The tapped point IS the exact surface point on the obstacle
+        // (from the collider hit-test), so place the finish right there.
+        // We only validate it's genuinely elevated above the locked
+        // surface and not up on a tall wall/background.
         // --------------------------------------------------------
 
-        var nearbyObstacles:
-            [(ObstacleComponent, MeshReader)] =
-                []
-
-
-        for child in root.children {
-
-            guard
-                let obstacle =
-                    child.components[
-                        ObstacleComponent.self
-                    ]
-            else {
-                continue
-            }
-
-
-            let distance =
-                horizontalDistance(
-                    obstacle.centroid,
-                    target
-                )
-
-
-            guard
-                distance <=
-                    searchRadius
-            else {
-                continue
-            }
-
-
-            guard
-                obstacle.aabbMax.y >
-                    planeY +
-                    minimumHeight
-            else {
-                continue
-            }
-
-
-            guard
-                let mesh =
-                    component.meshAnchors[
-                        obstacle.meshID
-                    ],
-                let data =
-                    MeshReader.read(mesh)
-            else {
-                continue
-            }
-
-
-            nearbyObstacles.append(
-                (
-                    obstacle,
-                    data
-                )
-            )
-        }
-
-
-        // --------------------------------------------------------
-        // Nothing elevated near the target.
-        // --------------------------------------------------------
+        let heightAbovePlane = target.y - planeY
 
         guard
-            !nearbyObstacles.isEmpty
+            heightAbovePlane >= minimumHeight,
+            heightAbovePlane <= maxFinishHeight
         else {
 
             component.presenter?.warn(
-                "No elevated object detected there. Tap the obstacle and scan around it."
+                "Tap the top of the ramp or box — that spot isn't on the obstacle."
             )
 
             return
         }
 
-
-        // --------------------------------------------------------
-        // Find the local highest point.
-        //
-        // We intentionally use REAL vertices rather than the
-        // AABB maximum.
-        // --------------------------------------------------------
-
-        var candidates: [SIMD3<Float>] = []
-
-        for (_, data) in nearbyObstacles {
-            for vertex in data.worldPositions {
-
-                let dx = vertex.x - target.x
-                let dz = vertex.z - target.z
-
-                guard sqrt(dx * dx + dz * dz) <= searchRadius else {
-                    continue
-                }
-
-                guard vertex.y - planeY >= minimumHeight else {
-                    continue
-                }
-
-                candidates.append(vertex)
-            }
-        }
-
-
-        guard !candidates.isEmpty else {
-
-            component.presenter?.warn(
-                "The selected area has not been scanned enough yet."
-            )
-
-            return
-        }
-
-
-        // Robust top estimate.
-        //
-        // A single stray LiDAR vertex can spike way above the real
-        // surface and throw the finish into the air. So instead of
-        // trusting the highest vertex, sort by height, DROP the extreme
-        // top (likely noise), then AVERAGE the remaining top band. This
-        // gives a stable point centred on the obstacle's top surface.
-        candidates.sort { $0.y < $1.y }
-
-        let candidateCount = candidates.count
-
-        // Discard the top 3% as potential outlier spikes.
-        let trimmedEnd = max(1, candidateCount - Int(Float(candidateCount) * 0.03))
-
-        // Average the top 15% of what remains.
-        let bandSize = max(1, Int(Float(candidateCount) * 0.15))
-        let bandStart = max(0, trimmedEnd - bandSize)
-
-        var topSum = SIMD3<Float>(repeating: 0)
-        for i in bandStart..<trimmedEnd {
-            topSum += candidates[i]
-        }
-
-        let robustTop = topSum / Float(trimmedEnd - bandStart)
+        let robustTop = target
 
 
         // --------------------------------------------------------
-        // Finish sits just above the robust top surface point.
+        // Finish sits just above the tapped top surface point.
         // --------------------------------------------------------
 
         let finish =
@@ -632,35 +514,6 @@ struct ObstacleDetectionSystem: System {
         }
     }
 
-
-    // ============================================================
-    // MARK: Horizontal distance
-    // ============================================================
-
-    private func horizontalDistance(
-        _ a:
-            SIMD3<Float>,
-
-        _ b:
-            SIMD3<Float>
-    ) -> Float {
-
-        let dx =
-            a.x -
-            b.x
-
-        let dz =
-            a.z -
-            b.z
-
-        return sqrt(
-            dx * dx +
-            dz * dz
-        )
-    }
-
-
-   
 
     // ============================================================
     // MARK: Scene helpers
