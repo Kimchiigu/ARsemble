@@ -12,6 +12,10 @@ struct ContentView: View {
     @State private var progress = LevelProgressStore()
 
     var body: some View {
+        SurfaceScannerView()
+            .onAppear {
+                SoundManager.shared.playBackgroundMusic(named: "music-bg")
+            }
         NavigationStack(path: $router.path) {
             HomeView { lesson in
                 router.push(.level(lesson: lesson))
