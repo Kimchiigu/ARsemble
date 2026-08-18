@@ -75,14 +75,14 @@ struct CarViewerView: View {
                 .fill(Color(.tertiarySystemBackground))
         )
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(alignment: .bottom) {
-            if !isPresenting {
-                Text("Drag to rotate • Pinch to zoom")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .padding(.bottom, 10)
-            }
-        }
+//        .overlay(alignment: .bottom) {
+//            if !isPresenting {
+//                Text("Drag to rotate • Pinch to zoom")
+//                    .font(.caption2)
+//                    .foregroundStyle(.secondary)
+//                    .padding(.bottom, 10)
+//            }
+//        }
         .onChange(of: isPresenting) { _, presenting in
             if presenting {
                 playCinematic()

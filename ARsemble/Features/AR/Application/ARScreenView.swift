@@ -67,11 +67,11 @@ struct SurfaceScannerView: View {
 
             ARContainer(driver: driver)
                 .ignoresSafeArea()
-
-            controls
-                .padding(.bottom, 28)
-          
-
+            
+            if driver.didTip {
+                TipOverOverlayView()
+            }
+            
             // ==================================================
             // Instruction overlays.
             //
@@ -153,6 +153,8 @@ struct SurfaceScannerView: View {
                 )
             }
 
+            // Car toppled over (centre of gravity too high for the slope).
+            
             // Success — celebrate, then "Finish" opens the summary page.
             if driver.didSucceed {
                 if showSuccessOverlay {
@@ -167,8 +169,10 @@ struct SurfaceScannerView: View {
                     showfinishOverlay = false
                 }, showSummary: $showSummary)
             }
-    
 
+            controls
+                .padding(.bottom, 28)
+          
         }
         .fullScreenCover(isPresented: $showSummary) {
             SummaryPageView(
@@ -193,6 +197,10 @@ struct SurfaceScannerView: View {
         .animation(
             .easeInOut(duration: 0.2),
             value: driver.didSucceed
+        )
+        .animation(
+            .easeInOut(duration: 0.2),
+            value: driver.didTip
         )
         // Warm the usdz wheel assets so the editor's tyres (not procedural
         // wheels) are used when the car spawns.
@@ -231,7 +239,7 @@ struct SurfaceScannerView: View {
                             .bold()
                             .padding(.horizontal, 20)
                             .padding(.vertical, 16)
-                            .background(.orange)
+                            .background(Color("Primary"))
                             .clipShape(Capsule())
                             .foregroundStyle(.white)
                     }
@@ -239,18 +247,34 @@ struct SurfaceScannerView: View {
                     Spacer()
                     
                     // Retry the drive (car back to start) once it's actually driving.
-                    if driver.finishConfirmed && !driver.didSucceed {
+                    if driver.didTip {
                         Button {
                             driver.retryDrive()
                         } label: {
-                            Label("Retry Drive", systemImage: "arrow.2.circlepath.circle.fill")
+                            Text("Start Trip")
                                 .font(.title2)
                                 .bold()
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 16)
-                                .background(.orange)
+                                .background(Color("Primary"))
                                 .clipShape(Capsule())
                                 .foregroundStyle(.white)
+                        }
+                        
+                    }else{
+                        if driver.finishConfirmed && !driver.didSucceed {
+                            Button {
+                                driver.retryDrive()
+                            } label: {
+                                Label("Retry Drive", systemImage: "arrow.2.circlepath.circle.fill")
+                                    .font(.title2)
+                                    .bold()
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 16)
+                                    .background(Color("Primary"))
+                                    .clipShape(Capsule())
+                                    .foregroundStyle(.white)
+                            }
                         }
                     }
                 }

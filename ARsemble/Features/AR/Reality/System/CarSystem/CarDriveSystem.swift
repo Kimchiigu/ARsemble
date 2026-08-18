@@ -26,9 +26,9 @@ struct CarDriveSystem: System {
         )
 
 
-    private let speed: Float = 0.25            // horizontal m/s
+    private let speed: Float = 0.15            // horizontal m/s
 
-    private let climbRate: Float = 0.35        // max upward m/s (ride ramps, not walls)
+    private let climbRate: Float = 0.25        // max upward m/s (ride ramps, not walls)
     private let fallRate: Float = 0.8          // max downward m/s
 
     private let turnRate: Float = 4.0          // yaw rad/s

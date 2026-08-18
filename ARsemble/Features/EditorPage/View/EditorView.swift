@@ -43,9 +43,13 @@ struct EditorView: View {
             Color(.systemBackground).ignoresSafeArea()
 
             VStack(spacing: 16) {
-                HStack(spacing: 12) {
-                    CarViewerView(viewModel: viewModel, isPresenting: phase != .editing)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(spacing: 33){
+                        FreeBubbleChat(text: "Build a car that has a low center of gravity.")
+                        
+                        CarViewerView(viewModel: viewModel, isPresenting: phase != .editing)
+                            .frame(maxWidth: .infinity, maxHeight: 400)
+                    }
 
                     if phase == .editing {
                         EditorConfigView(viewModel: viewModel)
@@ -66,38 +70,7 @@ struct EditorView: View {
 
     private var bottomBar: some View {
         HStack {
-            ZStack {
-                Circle()
-                    .fill(Color(.systemGray6))
-                    .frame(width: 64, height: 64)
-
-                Image("armadillo-editor")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 48, height: 48)
-            }
-
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.blue)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(Color.blue.opacity(0.7), lineWidth: 1)
-                    )
-
-                BubbleTail()
-                    .fill(Color.blue)
-                    .frame(width: 20, height: 24)
-                    .offset(x: -18)
-
-                Text("Build a car that has a low center of gravity.")
-                    .foregroundStyle(Color.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .font(.title3)
-                    .bold()
-            }
-            .fixedSize(horizontal: false, vertical: true)
+                
 
             Spacer()
 
