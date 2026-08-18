@@ -270,7 +270,37 @@ struct ARContainer: UIViewRepresentable {
         ) {
 
             // --------------------------------------------------
-            // Try an existing horizontal plane first.
+            // MOST ACCURATE: hit the actual obstacle surface the user
+            // tapped (its mesh collider), so the finish sits exactly on
+            // the book/box — not on a flat plane in the air.
+            // --------------------------------------------------
+
+            let colliderHits =
+                arView.hitTest(
+                    screenPoint,
+                    query: .all,
+                    mask: .all
+                )
+
+            // Nearest real surface that isn't the car / marker. This can be an
+            // obstacle collider OR the reconstructed LiDAR mesh. The driver
+            // validates it's actually elevated (on the obstacle, not the floor).
+            if let hit =
+                colliderHits.first(where: {
+                    $0.entity.name != "VirtualCar" &&
+                    $0.entity.name != "FinishPoint"
+                }) {
+
+                driver.selectTarget(
+                    at: hit.position
+                )
+
+                return
+            }
+
+
+            // --------------------------------------------------
+            // Fallback: an existing horizontal plane.
             // --------------------------------------------------
 
             if let result =

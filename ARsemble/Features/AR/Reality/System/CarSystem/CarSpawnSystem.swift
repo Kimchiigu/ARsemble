@@ -138,6 +138,14 @@ struct CarSpawnSystem: System {
                     motion.angularVelocity = .zero
                     car.components.set(motion)
 
+                    // Un-topple and stand it back up.
+                    if var cc = car.components[CarComponent.self] {
+                        cc.tipped = false
+                        cc.tipRoll = 0
+                        car.components.set(cc)
+                    }
+                    car.setOrientation(simd_quatf(ix: 0, iy: 0, iz: 0, r: 1), relativeTo: nil)
+
                     component.retryDriveRequested = false
                     entity.components.set(component)
                 }
@@ -152,16 +160,19 @@ struct CarSpawnSystem: System {
         in anchor: Entity
     ) -> ModelEntity {
 
+        let spec = EntityFactory.placeholderCarSpec()
+
         let car =
-            EntityFactory.createCar(
-                spec: EntityFactory.placeholderCarSpec()
-            )
+            EntityFactory.createCar(spec: spec)
 
         car.name = "VirtualCar"
 
-        car.components.set(
-            CarComponent()
-        )
+        // Store the car's real dimensions so CarDriveSystem can work out its
+        // centre-of-gravity height vs. base width for tipping.
+        var carComponent = CarComponent()
+        carComponent.size =
+            SIMD3<Float>(spec.lengthCm, spec.heightCm, spec.widthCm) * 0.01
+        car.components.set(carComponent)
 
         if var body =
             car.components[

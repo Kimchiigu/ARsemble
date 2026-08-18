@@ -4,10 +4,11 @@
 //
 //  Created by Reynard Amadeus  on 13/08/26.
 //
-//  Drives the already-placed car toward the finish point. The car exists before
-//  the obstacle is chosen (it's placed during the drag-to-fit phase), so this
-//  system reads the finish target LIVE from SurfaceScanComponent and only starts
-//  moving once placement is confirmed and a finish exists.
+//  Drives the placed car toward the finish. Uses TERRAIN FOLLOWING: each frame
+//  it steps horizontally toward the finish, raycasts straight down onto the
+//  obstacle / floor colliders, and rides the surface height it finds. This
+//  climbs any ramp deterministically (no dependence on tricky rigid-body
+//  contact behaviour on noisy LiDAR meshes).
 //
 
 import RealityKit
@@ -25,19 +26,18 @@ struct CarDriveSystem: System {
         )
 
 
-    private let speed: Float = 0.3
+    private let speed: Float = 0.25            // horizontal m/s
 
-    /// Horizontal "hit" radius around the finish that counts as reaching it.
-    private let arrivalDistance: Float = 0.08
+    private let climbRate: Float = 0.35        // max upward m/s (ride ramps, not walls)
+    private let fallRate: Float = 0.8          // max downward m/s
 
-    /// How far below the finish height still counts as "climbed to it".
-    private let heightTolerance: Float = 0.06
+    private let turnRate: Float = 4.0          // yaw rad/s
+    private let facingThreshold: Float = 0.35  // rad; drive only when facing
 
-    /// How fast the car turns to face the finish (radians/second).
-    private let turnRate: Float = 4.0
+    private let arrivalDistance: Float = 0.08  // horizontal hit radius
+    private let heightTolerance: Float = 0.06  // must be near the finish height
 
-    /// Only drives forward once its heading is within this of the target.
-    private let facingThreshold: Float = 0.35
+    private let toppleRate: Float = 3.0        // how fast it falls over (rad/s)
 
 
     init(scene: RealityKit.Scene) {}
@@ -80,6 +80,11 @@ struct CarDriveSystem: System {
         }
 
 
+        let dt = Float(context.deltaTime)
+
+
+        let worldUp = SIMD3<Float>(0, 1, 0)
+
         // ----------------------------------------------------
         // Drive each car toward the finish.
         // ----------------------------------------------------
@@ -89,120 +94,169 @@ struct CarDriveSystem: System {
             updatingSystemWhen: .rendering
         ) {
 
+            guard var car =
+                entity.components[CarComponent.self]
+            else {
+                continue
+            }
+
             let current =
-                entity.position(
-                    relativeTo: nil
-                )
+                entity.position(relativeTo: nil)
 
-            let toTarget =
-                target - current
+            // Real surface under the car: height + normal.
+            let info = presenter?.surfaceInfo(under: current)
+            let normal = info?.normal ?? worldUp
 
-
-            var motion =
-                entity.components[
-                    PhysicsMotionComponent.self
-                ]
-                ?? PhysicsMotionComponent()
-
-
-            // Reached the finish: horizontally ON the spot AND climbed up to it.
-            // (The height check avoids a false success while still at the base.)
-            let horizontalGap =
-                simd_length(
-                    SIMD3<Float>(
-                        toTarget.x,
-                        0,
-                        toTarget.z
-                    )
-                )
-
-            if horizontalGap <= arrivalDistance &&
-                current.y >= target.y - heightTolerance {
-
-                motion.linearVelocity = .zero
-                entity.components.set(motion)
-
-                presenter?.reportSuccess()
-
-                continue
-            }
-
-
-            // Direction to the finish (horizontal).
+            let toTarget = target - current
             let horizontal =
-                SIMD3<Float>(
-                    toTarget.x,
-                    0,
-                    toTarget.z
-                )
-
-            let horizontalLength =
-                simd_length(horizontal)
-
-            guard horizontalLength > 1e-4 else {
-                entity.components.set(motion)
-                continue
-            }
+                SIMD3<Float>(toTarget.x, 0, toTarget.z)
+            let horizontalGap = simd_length(horizontal)
 
             let direction =
-                horizontal / horizontalLength
+                horizontalGap > 1e-4
+                ? horizontal / horizontalGap
+                : entity.orientation(relativeTo: nil).act(SIMD3<Float>(1, 0, 0))
+
+            var newPos = current
 
 
-            // ------------------------------------------------
-            // Steer the heading toward the finish (yaw only).
-            //
-            // IMPORTANT: we no longer force the orientation flat. A
-            // forced-flat box can't conform to the ramp, so it jammed
-            // at the base and never climbed. Now the car is free to
-            // TILT with the incline (that's what lets it climb); we
-            // only steer its yaw, and preserve the pitch/roll the ramp
-            // contact produces. The low centre of gravity keeps it from
-            // tipping over.
-            // ------------------------------------------------
+            if car.tipped {
 
-            let desiredYaw =
-                atan2(-direction.z, direction.x)
+                // Already toppled — keep falling over, no more driving.
+                car.tipRoll = min(car.tipRoll + toppleRate * dt, .pi / 2)
 
-            let forward =
-                entity.orientation(relativeTo: nil).act(
-                    SIMD3<Float>(1, 0, 0)
+            } else {
+
+                // Reached the finish?
+                if horizontalGap <= arrivalDistance &&
+                    current.y >= target.y - heightTolerance {
+
+                    stop(entity)
+                    presenter?.reportSuccess()
+                    entity.components.set(car)
+                    continue
+                }
+
+                // Step horizontally toward the finish.
+                if horizontalGap > 1e-4 {
+                    let stepDist = min(speed * dt, horizontalGap)
+                    newPos.x += direction.x * stepDist
+                    newPos.z += direction.z * stepDist
+                }
+
+                // --------------------------------------------
+                // TIPPING: compare the incline angle to the car's tip
+                // threshold. A tall car (high CoG) / narrow base tips at a
+                // gentler slope; a low, wide car stays planted.
+                // --------------------------------------------
+
+                let inclineAngle =
+                    acos(max(-1, min(1, simd_dot(normal, worldUp))))
+
+                let cogHeight =
+                    max(car.size.y * 0.5, 0.005)
+
+                let baseHalfWidth =
+                    max(min(car.size.x, car.size.z) * 0.5, 0.005)
+
+                let tipAngle =
+                    atan2(baseHalfWidth, cogHeight)
+
+                if inclineAngle > tipAngle {
+                    car.tipped = true
+                    presenter?.reportTipOver()
+                }
+            }
+
+
+            // Ride the surface height (ARKit raycast — follows the incline).
+            if let info {
+                let carLift = liftFor(entity)
+                let desiredY = info.height + carLift
+                let dy = desiredY - current.y
+                newPos.y =
+                    current.y +
+                    max(-fallRate * dt, min(climbRate * dt, dy))
+            }
+
+
+            // Orientation: align to the surface + face the target, plus the
+            // topple roll if it's tipping. Smoothed to avoid LiDAR jitter.
+            let targetOrientation =
+                surfaceOrientation(
+                    forward: direction,
+                    up: normal,
+                    roll: car.tipped ? car.tipRoll : 0
                 )
 
-            let currentYaw =
-                atan2(-forward.z, forward.x)
-
-            var yawError =
-                desiredYaw - currentYaw
-
-            while yawError > .pi { yawError -= 2 * .pi }
-            while yawError < -.pi { yawError += 2 * .pi }
-
-            let yawSteer =
-                max(-4, min(4, yawError * 6))
-
-            motion.angularVelocity =
-                SIMD3<Float>(
-                    motion.angularVelocity.x,   // keep ramp-induced tilt
-                    yawSteer,                    // steer toward the finish
-                    motion.angularVelocity.z
+            let smoothed =
+                simd_slerp(
+                    entity.orientation(relativeTo: nil),
+                    targetOrientation,
+                    0.25
                 )
 
+            entity.setPosition(newPos, relativeTo: nil)
+            entity.setOrientation(smoothed, relativeTo: nil)
 
-            // ------------------------------------------------
-            // Drive horizontally toward the finish. Physics + the ramp
-            // collider turn this into a climb; vertical velocity is left
-            // to the simulation.
-            // ------------------------------------------------
-
-            motion.linearVelocity =
-                SIMD3<Float>(
-                    direction.x * speed,
-                    motion.linearVelocity.y,
-                    direction.z * speed
-                )
-
-
-            entity.components.set(motion)
+            stop(entity)
+            entity.components.set(car)
         }
+    }
+
+
+    // MARK: - Helpers
+
+    /// Zeroes the car's physics velocity so gravity/contacts don't fight the
+    /// kinematic terrain following.
+    private func stop(_ entity: Entity) {
+        var motion =
+            entity.components[PhysicsMotionComponent.self]
+            ?? PhysicsMotionComponent()
+        motion.linearVelocity = .zero
+        motion.angularVelocity = .zero
+        entity.components.set(motion)
+    }
+
+
+    /// Distance from the car's origin to its lowest visible point, so its wheels
+    /// sit on the surface.
+    private func liftFor(_ entity: Entity) -> Float {
+        let bounds = entity.visualBounds(relativeTo: entity)
+        return max(0.01, -bounds.min.y)
+    }
+
+
+    /// Orientation that plants the car on the surface (up = surface normal) and
+    /// faces the target (front = +X), plus an optional topple roll.
+    private func surfaceOrientation(
+        forward dir: SIMD3<Float>,
+        up normalIn: SIMD3<Float>,
+        roll: Float
+    ) -> simd_quatf {
+
+        let up =
+            simd_length(normalIn) > 1e-4
+            ? simd_normalize(normalIn)
+            : SIMD3<Float>(0, 1, 0)
+
+        // Project the travel direction onto the surface plane.
+        var fwd = dir - up * simd_dot(dir, up)
+        if simd_length(fwd) < 1e-4 {
+            fwd = SIMD3<Float>(1, 0, 0)
+        }
+        fwd = simd_normalize(fwd)
+
+        let side = simd_normalize(simd_cross(fwd, up))
+
+        let basis = simd_float3x3(fwd, up, side)
+        var q = simd_quatf(basis)
+
+        if roll != 0 {
+            // Roll about the forward axis to fall onto its side.
+            q = simd_quatf(angle: roll, axis: fwd) * q
+        }
+
+        return q
     }
 }

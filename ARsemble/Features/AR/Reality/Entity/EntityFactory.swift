@@ -63,7 +63,91 @@ struct EntityFactory {
         // Lets CarDriveSystem set the car's velocity each frame.
         carRoot.components.set(PhysicsMotionComponent())
 
+        // Red arrow pointing down at the car's centre of gravity.
+        carRoot.addChild(makeCoGArrow(carHeight: size.y))
+
         return carRoot
+    }
+
+
+    // MARK: - Centre-of-gravity arrow
+
+    /// A red arrow that sits just above the car and points straight down at it,
+    /// visualising where the weight pulls (the centre of gravity).
+    private static func makeCoGArrow(carHeight: Float) -> Entity {
+
+        let arrow = Entity()
+        let red = UnlitMaterial(color: .red)
+
+        let headHeight: Float = 0.02
+        let headRadius: Float = 0.012
+        let shaftHeight: Float = 0.05
+        let shaftRadius: Float = 0.004
+
+        // Cone: apex at local (0,0,0), base at +headHeight → points DOWN.
+        let head = ModelEntity(
+            mesh: makeConeMesh(radius: headRadius, height: headHeight),
+            materials: [red]
+        )
+        arrow.addChild(head)
+
+        // Shaft above the cone base.
+        let shaft = ModelEntity(
+            mesh: .generateCylinder(height: shaftHeight, radius: shaftRadius),
+            materials: [red]
+        )
+        shaft.position = [0, headHeight + shaftHeight / 2, 0]
+        arrow.addChild(shaft)
+
+        // Tip at the BASE of the car (its centre of gravity), pointing down.
+        arrow.position = [0, -carHeight * 0.5, 0]
+
+        return arrow
+    }
+
+    /// Builds a simple cone mesh (apex at the origin, base at +height). Faces are
+    /// double-sided so it renders from any angle. RealityKit has no cone
+    /// primitive, so we generate one.
+    private static func makeConeMesh(
+        radius: Float,
+        height: Float,
+        segments: Int = 16
+    ) -> MeshResource {
+
+        var positions: [SIMD3<Float>] = []
+        var triangles: [UInt32] = []
+
+        positions.append(SIMD3<Float>(0, 0, 0))   // 0: apex (tip)
+
+        for i in 0..<segments {
+            let a = Float(i) / Float(segments) * 2 * .pi
+            positions.append(
+                SIMD3<Float>(cos(a) * radius, height, sin(a) * radius)
+            )
+        }
+
+        let baseCenter = UInt32(positions.count)
+        positions.append(SIMD3<Float>(0, height, 0))   // base centre
+
+        for i in 0..<segments {
+            let a = UInt32(1 + i)
+            let b = UInt32(1 + (i + 1) % segments)
+
+            // Side (both windings so it's visible from any side).
+            triangles += [0, a, b]
+            triangles += [0, b, a]
+
+            // Base cap.
+            triangles += [baseCenter, b, a]
+            triangles += [baseCenter, a, b]
+        }
+
+        var descriptor = MeshDescriptor(name: "cone")
+        descriptor.positions = MeshBuffers.Positions(positions)
+        descriptor.primitives = .triangles(triangles)
+
+        return (try? MeshResource.generate(from: [descriptor]))
+            ?? .generateSphere(radius: radius)
     }
 
     static func createObstacle(_ id: UUID, in root: Entity) -> ModelEntity {

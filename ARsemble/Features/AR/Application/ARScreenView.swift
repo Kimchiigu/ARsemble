@@ -14,6 +14,10 @@ struct SurfaceScannerView: View {
     /// Used by "Rebuild it" to go back to the editor page.
     @Environment(\.dismiss) private var dismiss
 
+    /// Navigation to the editor / summary pages.
+    @State private var showEditor = false
+    @State private var showSummary = false
+
     var body: some View {
 
         ZStack(alignment: .bottom) {
@@ -89,7 +93,7 @@ struct SurfaceScannerView: View {
                     },
                     onRebuild: {
                         driver.cancelPlacement()
-                        dismiss()   // back to the editor page
+                        showEditor = true   // to the editor page
                     }
                 )
             }
@@ -112,6 +116,14 @@ struct SurfaceScannerView: View {
                     image: "arlo-success"
                 )
             }
+
+            // Tipped over — centre of gravity too high.
+            if driver.didTip {
+                InstructionOverlayView(
+                    text: "Oh no! Arlo’s car tipped over — its centre of gravity is too high. Rebuild it lower and wider."
+                )
+                .allowsHitTesting(false)
+            }
             
         }
         .animation(
@@ -122,6 +134,12 @@ struct SurfaceScannerView: View {
             .easeInOut(duration: 0.2),
             value: driver.showFinishConfirm
         )
+        .fullScreenCover(isPresented: $showEditor) {
+            EditorView()
+        }
+        .fullScreenCover(isPresented: $showSummary) {
+            SummaryPageView()
+        }
     }
 
 
@@ -131,7 +149,7 @@ struct SurfaceScannerView: View {
         VStack(spacing: 12) {
             HStack(spacing: 16) {
                 Button {
-                    
+                    showEditor = true
                 } label: {
                     Label("Rebuild Car", systemImage: "wrench.adjustable.fill")
                         .font(.title2)
@@ -146,7 +164,7 @@ struct SurfaceScannerView: View {
                 Spacer()
 
                 // Retry the drive (car back to start) once it's actually driving.
-                if driver.finishConfirmed {
+                if driver.finishConfirmed && !driver.didSucceed {
                     Button {
                         driver.retryDrive()
                     } label: {
@@ -156,6 +174,22 @@ struct SurfaceScannerView: View {
                             .padding(.horizontal, 20)
                             .padding(.vertical, 16)
                             .background(.orange)
+                            .clipShape(Capsule())
+                            .foregroundStyle(.white)
+                    }
+                }
+
+                // Finish → summary page, once Arlo has reached the finish.
+                if driver.didSucceed {
+                    Button {
+                        showSummary = true
+                    } label: {
+                        Label("Finish", systemImage: "flag.checkered")
+                            .font(.title2)
+                            .bold()
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
+                            .background(.green)
                             .clipShape(Capsule())
                             .foregroundStyle(.white)
                     }

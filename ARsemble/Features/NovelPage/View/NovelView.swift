@@ -19,15 +19,8 @@ struct NovelView: View {
 
             VStack {
                 ZStack {
-                    Image("woodenboard")
-                        .resizable()
-                        .frame(width: 329, height: 90)
-                        .overlay(
-                            Text("Incline Plane")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.white)
-                        )
-
+                    WoodenBoardHeaderView(text: "Incline Plane")
+                    
                     HStack {
                         BackButton {
                             dismiss()
