@@ -9,6 +9,10 @@ import SwiftUI
 
 struct NovelView: View {
     let pages = ["novelLevel1-1", "novelLevel1-2", "novelLevel1-3"]
+
+    /// "Finish" on the last page and "Skip Story" both continue to Concept.
+    var onContinue: () -> Void = {}
+
     @State private var index = 0
     @Environment(\.dismiss) private var dismiss
 
@@ -27,7 +31,7 @@ struct NovelView: View {
                         }.padding(.leading, 24).padding(.bottom, 36)
                         Spacer()
                         NextButton(title: "Skip Story") {
-                            dismiss()
+                            onContinue()
                         }
                     }
                 }
@@ -50,7 +54,11 @@ struct NovelView: View {
                     }
                     Spacer()
                     NextButton(title: index == pages.count - 1 ? "Finish" : "Next") {
-                        if index < pages.count - 1 { index += 1 }
+                        if index < pages.count - 1 {
+                            index += 1
+                        } else {
+                            onContinue()
+                        }
                     }
                 }
                 .padding(.horizontal, 24)

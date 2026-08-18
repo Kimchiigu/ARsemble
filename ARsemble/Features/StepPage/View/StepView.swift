@@ -8,10 +8,13 @@
 import SwiftUI
 
 struct StepView: View {
-    
+
+    /// "Build Car" on the last step continues to the Editor.
+    var onBuild: () -> Void = {}
+
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = StepViewModel()
-    
+
     var body: some View {
         ZStack {
             Color("Background")
@@ -133,7 +136,7 @@ private extension StepView {
     
     var stepImageSection: some View {
         let step = viewModel.currentStepData
-        
+
         return RoundedRectangle(cornerRadius: 22)
             .fill(Color.white)
             .shadow(
@@ -143,13 +146,21 @@ private extension StepView {
                 y: 5
             )
             .overlay {
-                Image(step.image)
-                    .resizable()
-                    .aspectRatio(
-                        contentMode: step.fillsFrame ? .fill : .fit
-                    )
-                    .padding(step.fillsFrame ? 0 : 35)
-                    .clipShape(RoundedRectangle(cornerRadius: 22))
+                // Last step: the live camera with the ramp reference overlaid,
+                // shown directly in the card (no separate camera page).
+                if viewModel.isLastStep {
+                    CameraCheckCard(overlayImage: step.image)
+                        .padding(10)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                } else {
+                    Image(step.image)
+                        .resizable()
+                        .aspectRatio(
+                            contentMode: step.fillsFrame ? .fill : .fit
+                        )
+                        .padding(step.fillsFrame ? 0 : 35)
+                        .clipShape(RoundedRectangle(cornerRadius: 22))
+                }
             }
             .frame(width:723, height:519)
             .offset(x:50, y:30)
@@ -171,7 +182,7 @@ private extension StepView {
             
             if viewModel.isLastStep {
                 NextButton(title: "Build Car") {
-                    // TODO: navigate to the Build Car / Editor flow
+                    onBuild()
                 }
             } else {
                 NextButton(title: "Next Step") {

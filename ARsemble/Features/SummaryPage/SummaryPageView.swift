@@ -6,8 +6,13 @@
 //
 import SwiftUI
 struct SummaryPageView: View{
-    @State private var showEditor = false
-    @State private var showLevel = false
+
+    /// "Finish" — the level is done; mark progress and leave for the level map.
+    var onFinish: () -> Void = {}
+
+    /// "Rebuild Car" — go back to the editor (current car config is kept).
+    var onRebuild: () -> Void = {}
+
     var body: some View{
         VStack(spacing: 27){
             VStack(spacing:17){
@@ -53,7 +58,7 @@ struct SummaryPageView: View{
             Image("placeholder_summary")
             HStack{
                 Button {
-                    showEditor = true
+                    onRebuild()
                 } label: {
                     Label("Rebuild Car", systemImage: "wrench.adjustable.fill")
                         .font(.title2)
@@ -66,27 +71,21 @@ struct SummaryPageView: View{
                 }
 
                 Spacer()
-                
+
                 Button {
-                    showLevel = true
+                    onFinish()
                 } label: {
-                    Label("Finish", systemImage: "wrench.adjustable.fill")
+                    Label("Finish", systemImage: "flag.checkered")
                         .font(.title2)
                         .bold()
                         .padding(.horizontal, 20)
                         .padding(.vertical, 16)
-                        .background(.orange)
+                        .background(.green)
                         .clipShape(Capsule())
                         .foregroundStyle(.white)
                 }
             }
         }.padding(32)
-        .fullScreenCover(isPresented: $showEditor) {
-            EditorView()
-        }
-        .fullScreenCover(isPresented: $showLevel) {
-//            LevelPageView()
-        }
     }
 }
 

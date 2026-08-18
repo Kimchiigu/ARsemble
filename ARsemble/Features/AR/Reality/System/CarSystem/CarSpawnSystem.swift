@@ -73,7 +73,11 @@ struct CarSpawnSystem: System {
 
                 let car =
                     existingCar ??
-                    makePlacementCar(in: anchor)
+                    makePlacementCar(
+                        in: anchor,
+                        spec: component.carSpec
+                            ?? EntityFactory.placeholderCarSpec()
+                    )
 
                 // Sit just above the surface at the drag point.
                 car.setPosition(
@@ -157,13 +161,14 @@ struct CarSpawnSystem: System {
     /// Builds the car and adds it to the anchor as a KINEMATIC body so it stays
     /// exactly where it's dragged (no gravity) until placement is confirmed.
     private func makePlacementCar(
-        in anchor: Entity
+        in anchor: Entity,
+        spec: CarSpecComponent
     ) -> ModelEntity {
 
-        let spec = EntityFactory.placeholderCarSpec()
-
         let car =
-            EntityFactory.createCar(spec: spec)
+            EntityFactory.createCar(
+                spec: spec
+            )
 
         car.name = "VirtualCar"
 

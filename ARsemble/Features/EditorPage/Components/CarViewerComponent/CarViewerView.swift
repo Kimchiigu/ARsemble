@@ -93,14 +93,7 @@ struct CarViewerView: View {
     }
 
     private func applySpec() {
-        holder.components[CarSpecComponent.self] = CarSpecComponent(
-            lengthCm: Float(viewModel.lengthCm),
-            widthCm: Float(viewModel.widthCm),
-            heightCm: Float(viewModel.heightCm),
-            bodyColor: UIColor(viewModel.bodyColor.color),
-            bodyColorId: viewModel.bodyColor.id,
-            tyreIndex: tyres.firstIndex { $0.id == viewModel.tyre.id } ?? 0
-        )
+        holder.components[CarSpecComponent.self] = viewModel.carSpec
     }
 
     private func buildLighting(into root: Entity) {

@@ -9,14 +9,27 @@ import SwiftUI
 struct SurfaceScannerView: View {
 
     /// Owns the ARSession + scanRoot entity and publishes UI state.
-    @StateObject private var driver = SurfaceScanDriver()
+    @StateObject private var driver: SurfaceScanDriver
+
+    /// Called when the level is completed — marks progress and leaves AR.
+    private let onFinish: () -> Void
 
     /// Used by "Rebuild it" to go back to the editor page.
     @Environment(\.dismiss) private var dismiss
 
-    /// Navigation to the editor / summary pages.
-    @State private var showEditor = false
+    /// Stack navigation (used to pop back to the editor deterministically).
+    @Environment(Router.self) private var router
+
+    /// True while the post-level summary page is covering the screen.
     @State private var showSummary = false
+
+    init(
+        carSpec: CarSpecComponent = EntityFactory.placeholderCarSpec(),
+        onFinish: @escaping () -> Void = {}
+    ) {
+        _driver = StateObject(wrappedValue: SurfaceScanDriver(carSpec: carSpec))
+        self.onFinish = onFinish
+    }
 
     var body: some View {
 
@@ -93,7 +106,7 @@ struct SurfaceScannerView: View {
                     },
                     onRebuild: {
                         driver.cancelPlacement()
-                        showEditor = true   // to the editor page
+                        dismiss()   // back to the editor page (car config kept)
                     }
                 )
             }
@@ -110,21 +123,25 @@ struct SurfaceScannerView: View {
                 )
             }
 
-            // Success.
+            // Success — celebrate, then "Finish" opens the summary page.
             if driver.didSucceed {
                 InstructionOverlayView(
                     image: "arlo-success"
                 )
             }
 
-            // Tipped over — centre of gravity too high.
-            if driver.didTip {
-                InstructionOverlayView(
-                    text: "Oh no! Arlo’s car tipped over — its centre of gravity is too high. Rebuild it lower and wider."
-                )
-                .allowsHitTesting(false)
-            }
-            
+        }
+        .fullScreenCover(isPresented: $showSummary) {
+            SummaryPageView(
+                onFinish: {
+                    showSummary = false
+                    onFinish()
+                },
+                onRebuild: {
+                    showSummary = false
+                    router.pop()   // back to the editor page
+                }
+            )
         }
         .animation(
             .easeInOut(duration: 0.2),
@@ -134,11 +151,14 @@ struct SurfaceScannerView: View {
             .easeInOut(duration: 0.2),
             value: driver.showFinishConfirm
         )
-        .fullScreenCover(isPresented: $showEditor) {
-            EditorView()
-        }
-        .fullScreenCover(isPresented: $showSummary) {
-            SummaryPageView()
+        .animation(
+            .easeInOut(duration: 0.2),
+            value: driver.didSucceed
+        )
+        // Warm the usdz wheel assets so the editor's tyres (not procedural
+        // wheels) are used when the car spawns.
+        .task {
+            await CarBuilder.prepareWheelAssets()
         }
     }
 
@@ -149,7 +169,7 @@ struct SurfaceScannerView: View {
         VStack(spacing: 12) {
             HStack(spacing: 16) {
                 Button {
-                    showEditor = true
+                    dismiss()   // back to the editor page
                 } label: {
                     Label("Rebuild Car", systemImage: "wrench.adjustable.fill")
                         .font(.title2)
@@ -204,4 +224,5 @@ struct SurfaceScannerView: View {
 
 #Preview {
     SurfaceScannerView()
+        .environment(Router())
 }

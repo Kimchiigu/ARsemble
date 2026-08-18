@@ -75,6 +75,11 @@ final class SurfaceScanDriver:
         Entity()
 
 
+    /// The car built in the editor, spawned by CarSpawnSystem.
+    let carSpec:
+        CarSpecComponent
+
+
     private weak var arView:
         ARView?
 
@@ -83,7 +88,9 @@ final class SurfaceScanDriver:
     // MARK: Init
     // ========================================================
 
-    override init() {
+    init(carSpec: CarSpecComponent = EntityFactory.placeholderCarSpec()) {
+
+        self.carSpec = carSpec
 
         super.init()
 
@@ -119,6 +126,9 @@ final class SurfaceScanDriver:
 
         component.presenter =
             self
+
+        component.carSpec =
+            carSpec
 
         scanRoot.components.set(
             component
@@ -181,13 +191,13 @@ final class SurfaceScanDriver:
             false
 
 
-        arView.debugOptions.insert(
-            .showSceneUnderstanding
-        )
-
         // Make the reconstructed LiDAR mesh a real collider, so the car can
         // ride/climb ANY real surface (ramps, books, bags) reliably — not just
         // our per-chunk obstacle colliders.
+        //
+        // NOTE: no `.showSceneUnderstanding` debug option here — it renders the
+        // reconstruction mesh OVER the camera feed, which is one cause of the
+        // "dark AR screen" symptom.
         arView.environment.sceneUnderstanding.options.insert(.collision)
 
 

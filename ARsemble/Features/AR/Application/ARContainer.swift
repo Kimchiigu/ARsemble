@@ -10,6 +10,41 @@ import SwiftUI
 import RealityKit
 import ARKit
 
+/// ARView that reports when it is actually READY to host the ARSession: in a
+/// window AND laid out with non-zero bounds. Starting the session earlier binds
+/// the camera feed to a zero-size Metal layer — the background then stays black
+/// (dark screen) even though tracking and 3D content keep working.
+final class AttachAwareARView: ARView {
+
+    var onReadyToAttach: (() -> Void)?
+
+    private var hasReportedReady = false
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        reportIfReady()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        reportIfReady()
+    }
+
+    private func reportIfReady() {
+        guard !hasReportedReady,
+              window != nil,
+              bounds.width > 0,
+              bounds.height > 0
+        else {
+            return
+        }
+
+        hasReportedReady = true
+
+        onReadyToAttach?()
+    }
+}
+
 struct ARContainer: UIViewRepresentable {
 
     @ObservedObject var driver: SurfaceScanDriver
@@ -18,20 +53,22 @@ struct ARContainer: UIViewRepresentable {
         Coordinator()
     }
 
-    func makeUIView(context: Context) -> ARView {
+    func makeUIView(context: Context) -> AttachAwareARView {
 
-        let arView = ARView(
+        let arView = AttachAwareARView(
             frame: .zero
-        )
-
-        // Give the driver ownership of the AR session.
-        driver.attach(
-            to: arView
         )
 
         // Store references in coordinator.
         context.coordinator.driver = driver
         context.coordinator.arView = arView
+
+        // Give the driver ownership of the AR session — but only once the
+        // view is in a window AND has real bounds (zero-bounds attach leaves
+        // the camera background black).
+        arView.onReadyToAttach = { [weak coordinator = context.coordinator] in
+            coordinator?.attachIfNeeded()
+        }
 
         // --------------------------------------------------
         // TAP GESTURE
@@ -99,7 +136,7 @@ struct ARContainer: UIViewRepresentable {
     }
 
     func updateUIView(
-        _ uiView: ARView,
+        _ uiView: AttachAwareARView,
         context: Context
     ) {
         // Nothing needs to be updated here.
@@ -117,6 +154,25 @@ struct ARContainer: UIViewRepresentable {
         weak var arView: ARView?
 
         weak var driver: SurfaceScanDriver?
+
+        /// Attach once — didMoveToWindow can fire again if the view is
+        /// re-parented, and re-attaching would reset the session.
+        private var hasAttached = false
+
+        func attachIfNeeded() {
+            guard !hasAttached,
+                  let arView,
+                  let driver
+            else {
+                return
+            }
+
+            hasAttached = true
+
+            driver.attach(
+                to: arView
+            )
+        }
 
 
         // ==================================================

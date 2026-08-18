@@ -29,6 +29,10 @@ struct SurfaceScanComponent: Component {
 
     // MARK: - Car
 
+    /// The car to spawn, as built in the editor. Nil falls back to the
+    /// placeholder spec.
+    var carSpec: CarSpecComponent?
+
     var spawnCarRequested: Bool = false
 
     var carSpawnPoint: SIMD3<Float>?
