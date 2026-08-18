@@ -47,7 +47,10 @@ struct CarDriveSystem: System {
         context: SceneUpdateContext
     ) {
 
+        // ----------------------------------------------------
         // Pull the goal + presenter from the scan entity.
+        // ----------------------------------------------------
+
         var target: SIMD3<Float>?
         var presenter: SurfaceScanDriver?
         var finishConfirmed = false
@@ -67,6 +70,8 @@ struct CarDriveSystem: System {
             }
         }
 
+
+        // Only drive once the finish marker has been CONFIRMED by the player.
         guard
             finishConfirmed,
             let target
@@ -80,6 +85,9 @@ struct CarDriveSystem: System {
 
         let worldUp = SIMD3<Float>(0, 1, 0)
 
+        // ----------------------------------------------------
+        // Drive each car toward the finish.
+        // ----------------------------------------------------
 
         for entity in context.entities(
             matching: Self.carQuery,

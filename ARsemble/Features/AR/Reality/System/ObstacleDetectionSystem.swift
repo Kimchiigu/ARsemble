@@ -45,11 +45,6 @@ struct ObstacleDetectionSystem: System {
     /// (a wall, furniture) and ignored when placing the finish.
     private let maxFinishHeight: Float = 0.40
 
-    /// Once elevated geometry has been found, neighboring mesh
-    /// chunks within this distance are considered part of the
-    /// same physical obstacle.
-    private let clusterRadius: Float = 0.30
-
     /// Finish marker sits slightly above the real LiDAR vertex.
     private let finishOffset: Float = 0.015
 
@@ -442,7 +437,7 @@ struct ObstacleDetectionSystem: System {
 
 
         // --------------------------------------------------------
-        // Finish sits just above the robust top surface point.
+        // Finish sits just above the tapped top surface point.
         // --------------------------------------------------------
 
         let finish =
