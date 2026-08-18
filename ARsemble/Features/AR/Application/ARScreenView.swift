@@ -198,7 +198,16 @@ struct SurfaceScannerView: View {
         // wheels) are used when the car spawns.
         .task {
             await CarBuilder.prepareWheelAssets()
-        } .onChange(of: driver.didSucceed) { _, didSucceed in
+        }
+        // When pushed onto the NavigationStack, the camera feed can bind to the
+        // still-animating layer and render black. Once the push transition has
+        // settled, rebind the camera feed. No-op on direct launch.
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                driver.refreshCameraFeed()
+            }
+        }
+        .onChange(of: driver.didSucceed) { _, didSucceed in
             if didSucceed {
                 Task {
                     await startClosingCountdown()

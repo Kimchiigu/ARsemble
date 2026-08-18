@@ -84,6 +84,10 @@ final class SurfaceScanDriver:
         ARView?
 
 
+    /// Guards `refreshCameraFeed()` so the post-presentation rebind runs once.
+    private var didRefreshCamera = false
+
+
     // ========================================================
     // MARK: Init
     // ========================================================
@@ -230,6 +234,37 @@ final class SurfaceScanDriver:
                 .resetTracking,
                 .removeExistingAnchors
             ]
+        )
+    }
+
+
+    /// Re-binds the camera feed AFTER the view is fully on screen.
+    ///
+    /// When this screen is pushed onto a NavigationStack, `attach()` starts the
+    /// session while the destination is still animating in — the camera texture
+    /// binds to a transitioning/clipped layer and the feed never starts
+    /// compositing (black background, though tracking works). Calling this once
+    /// from `.onAppear` (after the push transition settles) re-asserts the
+    /// camera background and re-runs the session so RealityKit rebinds it to the
+    /// now-stable drawable. It's a no-op when launched directly (already fine).
+    func refreshCameraFeed() {
+
+        guard
+            !didRefreshCamera,
+            let arView
+        else {
+            return
+        }
+
+        didRefreshCamera = true
+
+        arView.cameraMode = .ar
+        arView.environment.background = .cameraFeed()
+
+        // Re-run WITHOUT reset options: keep whatever tracking/scan is already
+        // underway, just rebind the renderer to the settled layer.
+        arView.session.run(
+            makeARConfiguration()
         )
     }
 
