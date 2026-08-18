@@ -7,66 +7,98 @@
 
 import SwiftUI
 
-/// One circular stop on the level map: the level number while playable, a
-/// checkmark once completed, a lock icon when still locked (not tappable).
-struct LevelNodeButton: View {
-    let level: Int
+/// One island card in the level-select scroll: the island artwork with its
+/// state overlay, the level title and description, and a Start button.
+struct LevelIslandCard: View {
+    let node: LevelNode
     let state: LevelNodeState
+    let islandImage: String
+    let islandHeight: CGFloat
     var action: () -> Void = {}
 
     var body: some View {
-        switch state {
-        case .completed:
-            node(fill: .green) {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-            .allowsHitTesting(false)
+        VStack(spacing: 12) {
+            ZStack {
+                Image(islandImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: islandHeight)
+                    .saturation(state == .locked ? 0 : 1)
+                    .brightness(state == .locked ? -0.35 : 0)
 
-        case .unlocked:
-            Button(action: action) {
-                node(fill: Color("Primary")) {
-                    Text("\(level)")
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundStyle(.white)
+                switch state {
+                case .locked:
+                    Image("lock")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 52, height: 52)
+
+                case .completed:
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 52, height: 52)
+                        .overlay(
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundStyle(.white)
+                        )
+                        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+
+                case .unlocked:
+                    EmptyView()
                 }
             }
-            .buttonStyle(.plain)
+            .frame(height: islandHeight)
 
-        case .locked:
-            node(fill: Color(.systemGray3)) {
-                Image("lock")
-                    .resizable()
-                    .renderingMode(.template)
-                    .scaledToFit()
-                    .frame(width: 26, height: 26)
-                    .foregroundStyle(.white)
+            VStack(spacing: 4) {
+                Text("Level \(node.id): \(node.title)")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+
+                Text(node.description)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .allowsHitTesting(false)
+            .padding(.horizontal, 12)
+
+            StartButton(action: state == .unlocked ? action : {})
+                .grayscale(state == .unlocked ? 0 : 1)
+                .opacity(state == .unlocked ? 1 : 0.55)
+                .disabled(state != .unlocked)
+                .padding(.top, 4)
         }
-    }
-
-    private func node<Content: View>(
-        fill: Color,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        Circle()
-            .fill(fill)
-            .frame(width: 64, height: 64)
-            .overlay {
-                Circle().stroke(.white, lineWidth: 3)
-                content()
-            }
-            .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
     }
 }
 
 #Preview {
-    VStack(spacing: 20) {
-        LevelNodeButton(level: 1, state: .unlocked)
-        LevelNodeButton(level: 2, state: .completed)
-        LevelNodeButton(level: 3, state: .locked)
+    HStack(spacing: 40) {
+        LevelIslandCard(
+            node: LevelNode(
+                id: 1,
+                title: "Hill Climb",
+                description: "Learn about the center of gravity on an inclined plane."
+            ),
+            state: .unlocked,
+            islandImage: "island1",
+            islandHeight: 240
+        )
+        .frame(width: 280)
+
+        LevelIslandCard(
+            node: LevelNode(
+                id: 2,
+                title: "Down Hill",
+                description: "Learn about the center of gravity on an inclined plane."
+            ),
+            state: .locked,
+            islandImage: "island1",
+            islandHeight: 240
+        )
+        .frame(width: 280)
     }
-    .padding(40)
+    .padding()
 }

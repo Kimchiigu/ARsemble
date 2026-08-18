@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  ARsemble
 //
-//  Created by Reynard Amadeus  on 10/08/26.
+//  Created by Reynard Amadeus on 10/08/26.
 //
 
 import SwiftUI
@@ -12,10 +12,6 @@ struct ContentView: View {
     @State private var progress = LevelProgressStore()
 
     var body: some View {
-        SurfaceScannerView()
-            .onAppear {
-                SoundManager.shared.playBackgroundMusic(named: "music-bg")
-            }
         NavigationStack(path: $router.path) {
             HomeView { lesson in
                 router.push(.level(lesson: lesson))
@@ -28,6 +24,9 @@ struct ContentView: View {
         }
         .environment(router)
         .environment(progress)
+        .onAppear {
+            SoundManager.shared.playBackgroundMusic(named: "music-bg")
+        }
     }
 
     @ViewBuilder
@@ -39,28 +38,36 @@ struct ContentView: View {
             }
 
         case .novel(let lesson, let level):
-            NovelView(onContinue: {
+            NovelView {
                 router.push(.concept(lesson: lesson, level: level))
-            })
+            }
 
         case .concept(let lesson, let level):
-            ConceptView(onFinish: {
+            ConceptView {
                 router.push(.step(lesson: lesson, level: level))
-            })
+            }
 
         case .step(let lesson, let level):
-            StepView(onBuild: {
+            StepView {
                 router.push(.editor(lesson: lesson, level: level))
-            })
+            }
 
         case .editor(let lesson, let level):
-            EditorView(onReady: { spec in
-                router.push(.ar(lesson: lesson, level: level, spec: spec))
-            })
+            EditorView { spec in
+                router.push(.ar(
+                    lesson: lesson,
+                    level: level,
+                    spec: spec
+                ))
+            }
 
         case .ar(let lesson, let level, let spec):
             SurfaceScannerView(carSpec: spec) {
-                progress.complete(level: level, lesson: lesson)
+                progress.complete(
+                    level: level,
+                    lesson: lesson
+                )
+
                 router.returnToLevelMap(lesson: lesson)
             }
         }

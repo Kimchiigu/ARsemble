@@ -12,7 +12,7 @@ struct StartButton: View {
 
     var body: some View {
         Button(action: action) {
-            Text("Start Learning")
+            Text("Start")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundColor(.white)
                 .padding()
@@ -20,7 +20,6 @@ struct StartButton: View {
                 .background(Color("Primary"))
                 .cornerRadius(1000)
         }
-        .padding()
     }
 }
 

@@ -7,97 +7,122 @@
 
 import SwiftUI
 
-/// Level-select map for one lesson: the island artwork with the level stops
-/// along its winding path. Tapping an unlocked stop starts the lesson flow.
+/// Level-select screen for one lesson: a horizontal scroll of island cards
+/// (~3 visible at a time) joined by dotted connectors, ending in a
+/// "Next Island" label. Tapping an unlocked card starts that level.
 struct LevelView: View {
     let lesson: Int
-
-    /// Called with the level number when an unlocked node is tapped.
     var onSelect: (Int) -> Void = { _ in }
 
     @State private var viewModel = LevelViewModel()
     @Environment(LevelProgressStore.self) private var progress
     @Environment(\.dismiss) private var dismiss
 
+    /// Sized so roughly 3 cards fit across iPad landscape.
+    private let cardWidth: CGFloat = 280
+    private let islandHeight: CGFloat = 240
+    private let cardTopPadding: CGFloat = 8
+    private let connectorWidth: CGFloat = 56
+
+    /// Vertical offset of the dotted line, measured from the top of the row.
+    private var connectorY: CGFloat {
+        cardTopPadding + islandHeight * 0.55
+    }
+
+    private var islandImage: String {
+        LevelMap.lessonImages[lesson] ?? "island1"
+    }
+
     var body: some View {
-        ZStack {
-            Color("Background")
-                .ignoresSafeArea()
+        ZStack(alignment: .topLeading) {
+            LinearGradient(
+                colors: [Color("G1"), Color("G2")],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
-            VStack(spacing: 8) {
-                header
+            levelScrollView
 
-                map
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 16)
-            }
-        }
-    }
-
-    private var header: some View {
-        ZStack {
-            Image("woodenboard")
-                .resizable()
-                .frame(width: 329, height: 90)
-                .overlay(
-                    Text(LevelMap.lessonTitles[lesson] ?? "Lesson \(lesson)")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.white)
-                )
-
-            HStack {
-                BackButton {
-                    dismiss()
-                }
+            BackButton { dismiss() }
                 .padding(.leading, 24)
-                .padding(.bottom, 36)
-
-                Spacer()
-            }
+                .padding(.top, 12)
         }
-        .padding(.horizontal, 24)
     }
 
-    /// The map aspect-fitted to the available space, with the nodes
-    /// positioned along the path so they track the artwork at any size or
-    /// orientation.
-    private var map: some View {
-        GeometryReader { geo in
-            let scale = min(
-                geo.size.width / LevelMap.backgroundSize.width,
-                geo.size.height / LevelMap.backgroundSize.height
-            )
-            let mapSize = CGSize(
-                width: LevelMap.backgroundSize.width * scale,
-                height: LevelMap.backgroundSize.height * scale
-            )
-            let origin = CGPoint(
-                x: (geo.size.width - mapSize.width) / 2,
-                y: (geo.size.height - mapSize.height) / 2
-            )
+    // MARK: - Level scroll
 
-            ZStack {
-                Image(LevelMap.backgroundImageName)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: geo.size.width, height: geo.size.height)
+    private var levelScrollView: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: 0) {
 
-                ForEach(viewModel.nodes) { node in
-                    LevelNodeButton(
-                        level: node.id,
-                        state: viewModel.state(for: node, lesson: lesson, progress: progress)
+                ForEach(Array(viewModel.nodes.enumerated()), id: \.element.id) { index, node in
+
+                    LevelIslandCard(
+                        node: node,
+                        state: viewModel.state(
+                            for: node,
+                            lesson: lesson,
+                            progress: progress
+                        ),
+                        islandImage: islandImage,
+                        islandHeight: islandHeight
                     ) {
                         SoundManager.shared.playSound(named: "click")
                         onSelect(node.id)
                     }
-                    .position(
-                        x: origin.x + node.position.x * mapSize.width,
-                        y: origin.y + node.position.y * mapSize.height
-                    )
+                    .frame(width: cardWidth)
+
+                    // Dotted connector after every island, including the last
+                    // one (which links across to the "Next Island" label).
+                    dottedConnector
                 }
+
+                nextIslandLabel
             }
+            .padding(.horizontal, 32)
+            .padding(.vertical, cardTopPadding)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Pieces
+
+    private var dottedConnector: some View {
+        Rectangle()
+            .fill(.clear)
+            .frame(width: connectorWidth, height: connectorY + 4)
+            .overlay(alignment: .bottom) {
+                Line()
+                    .stroke(
+                        Color.primary.opacity(0.75),
+                        style: StrokeStyle(
+                            lineWidth: 5,
+                            lineCap: .round,
+                            dash: [1, 16]
+                        )
+                    )
+                    .frame(height: 5)
+            }
+    }
+
+    private var nextIslandLabel: some View {
+        Text("Next Island")
+            .font(.system(size: 30, weight: .semibold))
+            .foregroundStyle(.primary)
+            .fixedSize()
+            .padding(.top, connectorY - 20)
+            .padding(.trailing, 32)
+    }
+}
+
+/// A single horizontal line, used as the dotted connector shape.
+private struct Line: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.width, y: rect.midY))
+        return path
     }
 }
 
