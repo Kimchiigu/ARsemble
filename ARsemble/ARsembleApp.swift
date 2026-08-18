@@ -20,7 +20,7 @@ struct ARsembleApp: App {
     /// It spawns the placeholder car (no editor spec), so you land directly on
     /// surface scanning. Set back to `false` to restore the normal app flow.
     /// The Router navigation stack is left completely intact either way.
-    private let launchARDirectly = false
+    private let launchARDirectly = true
 
     var body: some Scene {
         WindowGroup {
