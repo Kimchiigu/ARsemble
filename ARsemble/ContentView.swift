@@ -10,6 +10,9 @@ import SwiftUI
 struct ContentView: View {
     var body: some View {
         SurfaceScannerView()
+            .onAppear {
+                SoundManager.shared.playBackgroundMusic(named: "music-bg")
+            }
     }
 }
 
