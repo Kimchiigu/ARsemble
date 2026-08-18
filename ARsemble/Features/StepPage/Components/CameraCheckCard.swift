@@ -8,6 +8,56 @@
 import AVFoundation
 import SwiftUI
 
+/// Owns the step-page capture session and serializes all access to it. The
+/// editor/AR transition waits for `stop` to finish before presenting ARKit.
+final class StepCameraSession: ObservableObject {
+
+    let captureSession = AVCaptureSession()
+
+    private let sessionQueue = DispatchQueue(label: "step-camera-check")
+
+    func start() {
+        sessionQueue.async { [captureSession] in
+            guard captureSession.inputs.isEmpty else {
+                if !captureSession.isRunning {
+                    captureSession.startRunning()
+                }
+                return
+            }
+
+            captureSession.beginConfiguration()
+            captureSession.sessionPreset = .high
+
+            if let device = AVCaptureDevice.default(
+                .builtInWideAngleCamera,
+                for: .video,
+                position: .back
+            ),
+               let input = try? AVCaptureDeviceInput(device: device),
+               captureSession.canAddInput(input) {
+                captureSession.addInput(input)
+            }
+
+            captureSession.commitConfiguration()
+            captureSession.startRunning()
+        }
+    }
+
+    /// Calls completion on the main actor only after AVFoundation has released
+    /// the camera, so ARKit never starts alongside this capture session.
+    func stop(completion: @escaping @MainActor () -> Void = {}) {
+        sessionQueue.async { [captureSession] in
+            if captureSession.isRunning {
+                captureSession.stopRunning()
+            }
+
+            DispatchQueue.main.async {
+                completion()
+            }
+        }
+    }
+}
+
 /// Live camera shown DIRECTLY inside the last step's image card, with the
 /// step's ramp reference picture overlaid — so the player can hold the device
 /// up to their real-world ramp and compare it against the example without
@@ -17,19 +67,18 @@ struct CameraCheckCard: View {
     /// Reference image drawn over the camera feed (e.g. "step5-2").
     var overlayImage: String
 
-    @State private var session = AVCaptureSession()
+    @ObservedObject var camera: StepCameraSession
+
     @State private var overlayOpacity = 0.5
     @State private var cameraAllowed = false
     @State private var permissionChecked = false
-
-    private let sessionQueue = DispatchQueue(label: "step-camera-check")
 
     var body: some View {
         ZStack {
             Color.black
 
             if cameraAllowed {
-                CameraPreview(session: session)
+                CameraPreview(session: camera.captureSession)
 
                 // The ramp reference, sized to sit INSIDE the card (not
                 // full-bleed) so the camera feed stays visible around it.
@@ -54,11 +103,7 @@ struct CameraCheckCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .task { await requestCameraAccess() }
         .onDisappear {
-            sessionQueue.async { [session] in
-                if session.isRunning {
-                    session.stopRunning()
-                }
-            }
+            camera.stop()
         }
     }
 
@@ -116,29 +161,7 @@ struct CameraCheckCard: View {
         permissionChecked = true
 
         if cameraAllowed {
-            configureSession()
-        }
-    }
-
-    private func configureSession() {
-        sessionQueue.async { [session] in
-            guard session.inputs.isEmpty else { return }
-
-            session.beginConfiguration()
-            session.sessionPreset = .high
-
-            if let device = AVCaptureDevice.default(
-                .builtInWideAngleCamera,
-                for: .video,
-                position: .back
-            ),
-               let input = try? AVCaptureDeviceInput(device: device),
-               session.canAddInput(input) {
-                session.addInput(input)
-            }
-
-            session.commitConfiguration()
-            session.startRunning()
+            camera.start()
         }
     }
 }
@@ -184,7 +207,10 @@ private struct CameraPreview: UIViewRepresentable {
 }
 
 #Preview(traits: .landscapeLeft) {
-    CameraCheckCard(overlayImage: "step5-2")
+    CameraCheckCard(
+        overlayImage: "step5-2",
+        camera: StepCameraSession()
+    )
         .frame(width: 723, height: 519)
         .padding()
 }

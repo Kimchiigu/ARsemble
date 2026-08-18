@@ -191,14 +191,23 @@ final class SurfaceScanDriver:
             false
 
 
+        // Re-assert the AR camera as the scene background. The ARView is created
+        // with this already, but re-applying it right before `session.run` (now
+        // that the view has real bounds) guards against a black feed if the
+        // background was ever left unset while the drawable was sizing.
+        arView.cameraMode = .ar
+        arView.environment.background = .cameraFeed()
+
+
         // Make the reconstructed LiDAR mesh a real collider, so the car can
         // ride/climb ANY real surface (ramps, books, bags) reliably — not just
         // our per-chunk obstacle colliders.
-        //
-        // NOTE: no `.showSceneUnderstanding` debug option here — it renders the
-        // reconstruction mesh OVER the camera feed, which is one cause of the
-        // "dark AR screen" symptom.
         arView.environment.sceneUnderstanding.options.insert(.collision)
+
+        // Red LiDAR mesh wireframe overlay (required: visualises the scanned
+        // reconstruction). The earlier "dark screen" was a drawable-timing bug,
+        // now fixed by the deferred attach — so this debug view is safe to keep on.
+        arView.debugOptions.insert(.showSceneUnderstanding)
 
 
         let root =

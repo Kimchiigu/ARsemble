@@ -41,7 +41,17 @@ final class AttachAwareARView: ARView {
 
         hasReportedReady = true
 
-        onReadyToAttach?()
+        // Defer to the NEXT runloop tick. `bounds` is non-zero here, but the
+        // backing CAMetalLayer's drawableSize can still be settling this pass
+        // (especially when pushed inside a NavigationStack). Starting the
+        // session against a not-yet-sized drawable binds the camera texture to
+        // a zero-size surface and the feed never starts compositing — the
+        // classic "tracking works but the background is black" bug. One tick
+        // later the layer is fully sized.
+        DispatchQueue.main.async { [weak self] in
+            guard self != nil else { return }
+            self?.onReadyToAttach?()
+        }
     }
 }
 
@@ -56,8 +66,16 @@ struct ARContainer: UIViewRepresentable {
     func makeUIView(context: Context) -> AttachAwareARView {
 
         let arView = AttachAwareARView(
-            frame: .zero
+            frame: .zero,
+            cameraMode: .ar,
+            automaticallyConfigureSession: false
         )
+
+        // Manual session configuration does not guarantee that the AR camera
+        // is selected as the RealityKit scene background. Set it explicitly:
+        // tracking and raycasts can still work while an unset background
+        // renders as black.
+        arView.environment.background = .cameraFeed()
 
         // Store references in coordinator.
         context.coordinator.driver = driver

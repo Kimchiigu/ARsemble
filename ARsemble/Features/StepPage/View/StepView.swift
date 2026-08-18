@@ -14,6 +14,8 @@ struct StepView: View {
 
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = StepViewModel()
+    @StateObject private var camera = StepCameraSession()
+    @State private var isOpeningEditor = false
 
     var body: some View {
         ZStack {
@@ -149,7 +151,10 @@ private extension StepView {
                 // Last step: the live camera with the ramp reference overlaid,
                 // shown directly in the card (no separate camera page).
                 if viewModel.isLastStep {
-                    CameraCheckCard(overlayImage: step.image)
+                    CameraCheckCard(
+                        overlayImage: step.image,
+                        camera: camera
+                    )
                         .padding(10)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                 } else {
@@ -182,7 +187,17 @@ private extension StepView {
             
             if viewModel.isLastStep {
                 NextButton(title: "Build Car") {
-                    onBuild()
+                    guard !isOpeningEditor else {
+                        return
+                    }
+
+                    isOpeningEditor = true
+
+                    // Do not push the next screen until the step camera has
+                    // released the back-camera hardware for ARKit.
+                    camera.stop {
+                        onBuild()
+                    }
                 }
             } else {
                 NextButton(title: "Next Step") {

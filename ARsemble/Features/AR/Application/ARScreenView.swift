@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import AVFoundation
+
 struct SurfaceScannerView: View {
 
     /// Owns the ARSession + scanRoot entity and publishes UI state.
@@ -22,6 +24,10 @@ struct SurfaceScannerView: View {
 
     /// True while the post-level summary page is covering the screen.
     @State private var showSummary = false
+    
+    @State private var showSuccessOverlay: Bool = false
+    @State private var showfinishOverlay: Bool = false
+    @State private var audioPlayer: AVAudioPlayer?
 
     init(
         carSpec: CarSpecComponent = EntityFactory.placeholderCarSpec(),
@@ -30,7 +36,31 @@ struct SurfaceScannerView: View {
         _driver = StateObject(wrappedValue: SurfaceScanDriver(carSpec: carSpec))
         self.onFinish = onFinish
     }
+    
+    private func startClosingCountdown() {
+        showSuccessOverlay = true
 
+        // Start sound
+        if let url = Bundle.main.url(
+            forResource: "success",
+            withExtension: "mp3"
+        ) {
+            audioPlayer = try? AVAudioPlayer(contentsOf: url)
+            audioPlayer?.play()
+        }
+
+        Task {
+            try? await Task.sleep(for: .seconds(5))
+
+            await MainActor.run {
+                showSuccessOverlay = false
+                audioPlayer?.stop()
+                // Celebration done — now show the "Level Cleared" overlay with
+                // the Rebuild / Continue choices.
+                showfinishOverlay = true
+            }
+        }
+    }
     var body: some View {
 
         ZStack(alignment: .bottom) {
@@ -125,10 +155,19 @@ struct SurfaceScannerView: View {
 
             // Success — celebrate, then "Finish" opens the summary page.
             if driver.didSucceed {
-                InstructionOverlayView(
-                    image: "arlo-success"
-                )
+                if showSuccessOverlay {
+                    InstructionOverlayView(
+                        image: "arlo-success"
+                    )
+                }
             }
+            if showfinishOverlay{
+                FinishOverlayView(dismiss: {
+                    router.pop()
+                    showfinishOverlay = false
+                }, showSummary: $showSummary)
+            }
+    
 
         }
         .fullScreenCover(isPresented: $showSummary) {
@@ -159,6 +198,12 @@ struct SurfaceScannerView: View {
         // wheels) are used when the car spawns.
         .task {
             await CarBuilder.prepareWheelAssets()
+        } .onChange(of: driver.didSucceed) { _, didSucceed in
+            if didSucceed {
+                Task {
+                    await startClosingCountdown()
+                }
+            }
         }
     }
 
@@ -168,27 +213,11 @@ struct SurfaceScannerView: View {
     private var controls: some View {
         VStack(spacing: 12) {
             HStack(spacing: 16) {
-                Button {
-                    dismiss()   // back to the editor page
-                } label: {
-                    Label("Rebuild Car", systemImage: "wrench.adjustable.fill")
-                        .font(.title2)
-                        .bold()
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 16)
-                        .background(.orange)
-                        .clipShape(Capsule())
-                        .foregroundStyle(.white)
-                }
-
-                Spacer()
-
-                // Retry the drive (car back to start) once it's actually driving.
-                if driver.finishConfirmed && !driver.didSucceed {
+                if(!driver.didSucceed){
                     Button {
-                        driver.retryDrive()
+                        dismiss()   // back to the editor page
                     } label: {
-                        Label("Retry Drive", systemImage: "arrow.2.circlepath.circle.fill")
+                        Label("Rebuild Car", systemImage: "wrench.adjustable.fill")
                             .font(.title2)
                             .bold()
                             .padding(.horizontal, 20)
@@ -197,23 +226,28 @@ struct SurfaceScannerView: View {
                             .clipShape(Capsule())
                             .foregroundStyle(.white)
                     }
+                    
+                    Spacer()
+                    
+                    // Retry the drive (car back to start) once it's actually driving.
+                    if driver.finishConfirmed && !driver.didSucceed {
+                        Button {
+                            driver.retryDrive()
+                        } label: {
+                            Label("Retry Drive", systemImage: "arrow.2.circlepath.circle.fill")
+                                .font(.title2)
+                                .bold()
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                                .background(.orange)
+                                .clipShape(Capsule())
+                                .foregroundStyle(.white)
+                        }
+                    }
                 }
 
                 // Finish → summary page, once Arlo has reached the finish.
-                if driver.didSucceed {
-                    Button {
-                        showSummary = true
-                    } label: {
-                        Label("Finish", systemImage: "flag.checkered")
-                            .font(.title2)
-                            .bold()
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 16)
-                            .background(.green)
-                            .clipShape(Capsule())
-                            .foregroundStyle(.white)
-                    }
-                }
+                
                 
             }
         }.padding(.horizontal, 30)
