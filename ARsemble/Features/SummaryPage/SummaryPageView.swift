@@ -14,48 +14,9 @@ struct SummaryPageView: View{
     var onRebuild: () -> Void = {}
 
     var body: some View{
-        VStack(spacing: 27){
-            VStack(spacing:17){
-                WoodenBoardHeaderView(text: "Incline Plane")
-                
-                HStack{
-                    ZStack {
-                        Circle()
-                            .fill(Color(.systemGray6))
-                            .frame(width: 64, height: 64)
-                        
-                        Image("armadillo-editor")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 48, height: 48)
-                    }
-                    
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.blue)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                    .stroke(Color.blue.opacity(0.7), lineWidth: 1)
-                            )
-                        
-                        BubbleTail()
-                            .fill(Color.blue)
-                            .frame(width: 20, height: 24)
-                            .offset(x: -18)
-                        
-                        Text("You helped Arlo climb the hill!")
-                            .foregroundStyle(Color.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
-                            .font(.title3)
-                            .bold()
-                    }
-                    .fixedSize(horizontal: false, vertical: true)
-                    
-                }
-            }
-            
-            Image("placeholder_summary")
+        VStack(alignment: .center, spacing: 27){
+            FreeBubbleChat(text: "You mastered center of gravity to keep your car from rolling over!")
+            GIFView(gifName: "review").frame(width: 994, height: 520).clipShape(RoundedRectangle(cornerRadius: 30))
             HStack{
                 Button {
                     onRebuild()
@@ -65,25 +26,25 @@ struct SummaryPageView: View{
                         .bold()
                         .padding(.horizontal, 20)
                         .padding(.vertical, 16)
-                        .background(.orange)
                         .clipShape(Capsule())
-                        .foregroundStyle(.white)
-                }
+                        .foregroundStyle(Color.gray)
+                        .frame(width: 240)
+                }.buttonStyle(.glassProminent).tint(.clear)
 
                 Spacer()
 
                 Button {
                     onFinish()
                 } label: {
-                    Label("Finish", systemImage: "flag.checkered")
+                    Label("Finish", systemImage: "iphone.and.arrow.right.outward")
                         .font(.title2)
                         .bold()
                         .padding(.horizontal, 20)
                         .padding(.vertical, 16)
-                        .background(.green)
                         .clipShape(Capsule())
                         .foregroundStyle(.white)
-                }
+                            .frame(width: 190)
+                }.buttonStyle(.glassProminent).tint(Color("Primary"))
             }
         }.padding(32)
     }
