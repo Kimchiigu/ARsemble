@@ -109,11 +109,13 @@ struct SurfaceScannerView: View {
             if isDrivingState {
                 VStack {
                     Text("Here goes Arlo! 🚗💨")
-                        .padding(12)
+                        .padding(.vertical, 16)
+                        .padding(.horizontal, 20)
                         .background(.black.opacity(0.44))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color("Secondary"))
                         .font(.system(size: 40, weight: .bold))
                         .cornerRadius(30)
+                    
                     Spacer(minLength: 0)
                 }
                 .padding(.top, 40)
@@ -315,7 +317,7 @@ struct SurfaceScannerView: View {
                             .padding(.vertical, 16)
                             .background(Color("Primary"))
                             .clipShape(Capsule())
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color("Secondary"))
                     }
                 }
                 Spacer()
@@ -331,9 +333,8 @@ struct SurfaceScannerView: View {
                             .bold()
                             .padding(.horizontal, 20)
                             .padding(.vertical, 16)
-                        
                             .clipShape(Capsule())
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(.black)
                     }.buttonStyle(.glassProminent).tint(.white)
                 }
                 }
