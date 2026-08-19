@@ -73,7 +73,7 @@ struct LevelView: View {
                     dottedConnector
                 }
 
-                nextIslandLabel
+//                nextIslandLabel
             }
             .padding(.horizontal, 32)
             .padding(.vertical, cardTopPadding)
@@ -101,14 +101,14 @@ struct LevelView: View {
             }
     }
 
-    private var nextIslandLabel: some View {
-        Text("Next Island")
-            .font(.system(size: 30, weight: .semibold))
-            .foregroundStyle(.primary)
-            .fixedSize()
-            .padding(.top, connectorY - 20)
-            .padding(.trailing, 32)
-    }
+//    private var nextIslandLabel: some View {
+//        Text("Next Island")
+//            .font(.system(size: 30, weight: .semibold))
+//            .foregroundStyle(.primary)
+//            .fixedSize()
+//            .padding(.top, connectorY - 20)
+//            .padding(.trailing, 32)
+//    }
 }
 
 /// A single horizontal line, used as the dotted connector shape.
