@@ -58,30 +58,16 @@ struct SurfaceLockSystem: System {
             }
             else if component.lockedPlaneID == nil {
 
-                tryLock(
+                // TAP-TO-LOCK: only lock once the player taps a surface.
+                lockAtRequest(
                     &component,
                     scene:
                         context.scene
                 )
 
             }
-            else {
-
-                // Keep the surface pinned to the largest (base) plane until
-                // the user commits a target, so the obstacle stays above y=0.
-                if !component.targetLocked {
-                    relockIfLargerPlaneAppeared(
-                        &component,
-                        scene:
-                            context.scene
-                    )
-                }
-
-                follow(
-                    &component
-                )
-                // Car spawning is handled by CarSpawnSystem.
-            }
+            // Once locked, the surface is pinned to the exact tapped point —
+            // no auto re-locking. Car spawning is handled by CarSpawnSystem.
 
 
             entity.components.set(
@@ -93,7 +79,10 @@ struct SurfaceLockSystem: System {
 
     // MARK: Lock
 
-    private func tryLock(
+    /// Locks the play surface at the exact WORLD point the player tapped. Pins
+    /// a world anchor there and gives it an invisible floor. Nothing happens
+    /// until `lockSurfaceRequest` is set (by the driver on tap).
+    private func lockAtRequest(
         _ component:
             inout SurfaceScanComponent,
 
@@ -102,47 +91,54 @@ struct SurfaceLockSystem: System {
     ) {
 
         guard
-            let plane =
-                largestPlane(
-                    component.detectedPlanes
-                )
+            let point =
+                component.lockSurfaceRequest
         else {
             return
         }
 
 
-        let anchor =
-            AnchorEntity(
-                anchor:
-                    plane
+        // If the tap landed on a REAL detected plane, anchor to it so we know
+        // the table's true boundary (car falls off the edge). Otherwise pin a
+        // world anchor at the tapped point (no edge detection possible).
+        if let planeID = component.lockSurfacePlaneID,
+           let plane =
+               component.detectedPlanes.first(
+                   where: { $0.identifier == planeID }
+               ) {
+
+            let anchor =
+                AnchorEntity(anchor: plane)
+
+            scene.addAnchor(anchor)
+
+            PhysicsFloor.attach(
+                to: anchor,
+                for: plane
             )
 
+            component.surfaceAnchor = anchor
 
-        scene.addAnchor(
-            anchor
-        )
+            // Keep the REAL plane id so CarDriveSystem can test the boundary.
+            component.lockedPlaneID = planeID
 
+        } else {
 
-        PhysicsFloor.attach(
-            to:
-                anchor,
+            let anchor =
+                AnchorEntity(world: point)
 
-            for:
-                plane
-        )
+            scene.addAnchor(anchor)
 
+            PhysicsFloor.attachWorld(to: anchor)
 
-        component.surfaceAnchor =
-            anchor
+            component.surfaceAnchor = anchor
 
-        component.lockedPlaneID =
-            plane.identifier
+            // Sentinel id: locked to a world point, not an ARKit plane.
+            component.lockedPlaneID = UUID()
+        }
 
-        component.lockedExtent =
-            extent(
-                of:
-                    plane
-            )
+        component.lockSurfaceRequest =
+            nil
 
 
         component.presenter?
@@ -151,7 +147,7 @@ struct SurfaceLockSystem: System {
 
         component.presenter?
             .statusText =
-            "Tap anywhere on the table to place Arlo’s car"
+            "Tap the floor to drop Arlo’s car here!"
     }
 
 
@@ -233,6 +229,9 @@ struct SurfaceLockSystem: System {
             nil
 
         component.lockedExtent =
+            nil
+
+        component.lockSurfaceRequest =
             nil
 
         component.detectedPlanes =

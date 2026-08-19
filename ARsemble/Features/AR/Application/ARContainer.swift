@@ -275,13 +275,22 @@ struct ARContainer: UIViewRepresentable {
                 )
 
 
-            // PLACEMENT: the first tap places the car on the surface; after
-            // that it's positioned by dragging.
-            if driver.hasLockedSurface,
-               !driver.carPlacementConfirmed {
+            // SURFACE LOCK: the first tap picks the play surface (the y-zero
+            // base). Nothing else can happen until a surface is locked.
+            if !driver.hasLockedSurface {
+                driver.lockSurface(at: screenPoint)
+                return
+            }
+
+            // PLACEMENT (free-form): the first tap drops the car; after that a
+            // tap moves it to the tapped spot. Drag also moves, two-finger twist
+            // rotates, and the Ready button commits.
+            if !driver.carPlacementConfirmed {
 
                 if !driver.carSpawnedForPlacement {
                     driver.placeCar(at: screenPoint)
+                } else {
+                    driver.dragCar(at: screenPoint)
                 }
 
                 return
@@ -322,7 +331,7 @@ struct ARContainer: UIViewRepresentable {
                 return
             }
 
-            // Only while positioning an already-placed car (tap places first).
+            // Only while positioning an already-placed, unconfirmed car.
             guard
                 driver.hasLockedSurface,
                 !driver.carPlacementConfirmed,
@@ -331,6 +340,7 @@ struct ARContainer: UIViewRepresentable {
                 return
             }
 
+            // One-finger drag moves the car around the surface.
             let screenPoint =
                 gesture.location(in: arView)
 
@@ -338,9 +348,6 @@ struct ARContainer: UIViewRepresentable {
 
             case .began, .changed:
                 driver.dragCar(at: screenPoint)
-
-            case .ended, .cancelled, .failed:
-                driver.endCarDrag()
 
             default:
                 break
@@ -361,7 +368,7 @@ struct ARContainer: UIViewRepresentable {
                 return
             }
 
-            // Only while positioning an already-placed car.
+            // Two-finger twist rotates the car during positioning.
             guard
                 driver.hasLockedSurface,
                 !driver.carPlacementConfirmed,

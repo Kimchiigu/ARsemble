@@ -142,10 +142,13 @@ struct CarSpawnSystem: System {
                     motion.angularVelocity = .zero
                     car.components.set(motion)
 
-                    // Un-topple and stand it back up.
+                    // Un-topple, un-fall, and stand it back up.
                     if var cc = car.components[CarComponent.self] {
                         cc.tipped = false
                         cc.tipRoll = 0
+                        cc.falling = false
+                        cc.fallSpeed = 0
+                        cc.offEdgeFrames = 0
                         car.components.set(cc)
                     }
                     car.setOrientation(simd_quatf(ix: 0, iy: 0, iz: 0, r: 1), relativeTo: nil)

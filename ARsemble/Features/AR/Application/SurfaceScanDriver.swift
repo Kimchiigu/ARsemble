@@ -20,7 +20,8 @@ import os
 final class SurfaceScanDriver:
     NSObject,
     ObservableObject,
-    ARSessionDelegate {
+    ARSessionDelegate,
+    ARCoachingOverlayViewDelegate {
 
 
     // ========================================================
@@ -57,6 +58,10 @@ final class SurfaceScanDriver:
     @Published var didTip =
         false
 
+    /// True once the car has driven off the edge of the play surface.
+    @Published var didFall =
+        false
+
     /// True while the "confirm car placement" popup is showing.
     @Published var showPlacementConfirm =
         false
@@ -67,6 +72,16 @@ final class SurfaceScanDriver:
 
     /// True after the first tap places the car (then it can be dragged).
     @Published var carSpawnedForPlacement =
+        false
+
+    /// After the player lifts the drag, the car enters ROTATE mode: swipe to
+    /// spin it, then tap to bring up the confirm popup.
+    @Published var placementRotating =
+        false
+
+    /// True once AR tracking is ready (coaching overlay finished). Only then do
+    /// we prompt the player to tap a surface.
+    @Published var readyToLockSurface =
         false
 
 
@@ -86,6 +101,11 @@ final class SurfaceScanDriver:
 
     private weak var arView:
         ARView?
+
+    /// Apple's built-in "move device around" coaching overlay. Kept so we can
+    /// dismiss it for good once the surface is locked.
+    private weak var coachingOverlay:
+        ARCoachingOverlayView?
 
 
     /// Rebinding the camera is retried a few times (throttled) because the
@@ -253,6 +273,50 @@ final class SurfaceScanDriver:
                 .removeExistingAnchors
             ]
         )
+
+        addCoachingOverlay(to: arView)
+    }
+
+
+    /// Adds Apple's built-in coaching overlay — the animated "move device
+    /// around" guide. Goal `.tracking` so it disappears once world tracking is
+    /// solid (not dependent on flaky plane detection); we then prompt the tap.
+    private func addCoachingOverlay(to arView: ARView) {
+
+        let coaching = ARCoachingOverlayView()
+        coaching.session = arView.session
+        coaching.goal = .tracking
+        coaching.activatesAutomatically = true
+        coaching.delegate = self
+        coaching.translatesAutoresizingMaskIntoConstraints = false
+
+        arView.addSubview(coaching)
+
+        NSLayoutConstraint.activate([
+            coaching.topAnchor.constraint(equalTo: arView.topAnchor),
+            coaching.bottomAnchor.constraint(equalTo: arView.bottomAnchor),
+            coaching.leadingAnchor.constraint(equalTo: arView.leadingAnchor),
+            coaching.trailingAnchor.constraint(equalTo: arView.trailingAnchor)
+        ])
+
+        self.coachingOverlay = coaching
+    }
+
+
+    // ========================================================
+    // MARK: ARCoachingOverlayViewDelegate
+    // ========================================================
+
+    func coachingOverlayViewDidDeactivate(
+        _ coachingOverlayView: ARCoachingOverlayView
+    ) {
+        // Tracking is ready — let the player tap to lock their play surface.
+        guard !hasLockedSurface else { return }
+
+        readyToLockSurface = true
+
+        statusText =
+            "Tap the table or floor where Arlo will play!"
     }
 
 
@@ -555,6 +619,144 @@ final class SurfaceScanDriver:
 
 
     // ========================================================
+    // MARK: Surface lock (tap)
+    // ========================================================
+
+    /// TAP-TO-LOCK: the player taps a surface and THAT becomes the play surface
+    /// (the y-zero base). Raycasts the tapped screen point to a world point and
+    /// hands it to SurfaceLockSystem to anchor.
+    func lockSurface(
+        at screenPoint: CGPoint
+    ) {
+
+        guard
+            !hasLockedSurface,
+            readyToLockSurface,
+            let arView
+        else {
+            return
+        }
+
+        // Prefer a REAL detected plane: locking to it gives us the table's true
+        // edges, so the car falls off at the boundary instead of floating over
+        // an infinite estimated plane. Fall back to an estimated-plane point
+        // only if nothing real is there yet.
+        var worldPoint: SIMD3<Float>?
+        var planeID: UUID?
+
+        if let hit =
+            arView.raycast(
+                from: screenPoint,
+                allowing: .existingPlaneGeometry,
+                alignment: .horizontal
+            ).first {
+
+            worldPoint = SIMD3<Float>(
+                hit.worldTransform.columns.3.x,
+                hit.worldTransform.columns.3.y,
+                hit.worldTransform.columns.3.z
+            )
+            planeID = (hit.anchor as? ARPlaneAnchor)?.identifier
+        } else {
+            worldPoint = surfacePoint(at: screenPoint)
+            planeID = nil
+        }
+
+        guard let point = worldPoint else {
+            statusText =
+                "Hmm, keep moving your device so it can see the surface."
+            return
+        }
+
+        // Stop the coaching overlay from coming back once we've committed.
+        coachingOverlay?.activatesAutomatically = false
+        coachingOverlay?.setActive(false, animated: true)
+
+        mutate {
+            $0.lockSurfaceRequest = point
+            $0.lockSurfacePlaneID = planeID
+        }
+    }
+
+
+    /// World-space Y of the locked play surface (the tapped base). Used to keep
+    /// the car ON the base and reject placing it up on the obstacle.
+    private func lockedSurfaceY() -> Float? {
+        scanRoot.components[SurfaceScanComponent.self]?
+            .surfaceAnchor?
+            .position(relativeTo: nil).y
+    }
+
+
+    /// Is the given world point still OVER the locked play surface (the tapped
+    /// table)? Tests the point against the real detected plane's boundary
+    /// polygon. Returns true when we can't tell (no real plane locked), so the
+    /// car never falls spuriously in the estimated-plane fallback case.
+    func isWithinPlayableSurface(
+        _ worldPoint: SIMD3<Float>
+    ) -> Bool {
+
+        guard
+            let component =
+                scanRoot.components[SurfaceScanComponent.self],
+            let planeID = component.lockSurfacePlaneID,
+            let plane =
+                component.detectedPlanes.first(
+                    where: { $0.identifier == planeID }
+                )
+        else {
+            return true
+        }
+
+        // World → plane-local (the plane lies in local X-Z, y ≈ up).
+        let inv = simd_inverse(plane.transform)
+        let local4 = inv * SIMD4<Float>(worldPoint.x, worldPoint.y, worldPoint.z, 1)
+        let p = SIMD2<Float>(local4.x, local4.z)
+
+        // Test against the detected boundary polygon.
+        let boundary = plane.geometry.boundaryVertices
+        if boundary.count >= 3 {
+            return pointInPolygon(
+                p,
+                polygon: boundary.map { SIMD2<Float>($0.x, $0.z) }
+            )
+        }
+
+        // No polygon yet — fall back to the plane's extent rectangle.
+        let half = SIMD2<Float>(
+            plane.planeExtent.width * 0.5,
+            plane.planeExtent.height * 0.5
+        )
+        let c = SIMD2<Float>(plane.center.x, plane.center.z)
+        return abs(p.x - c.x) <= half.x && abs(p.y - c.y) <= half.y
+    }
+
+
+    /// Standard ray-casting point-in-polygon test (2D).
+    private func pointInPolygon(
+        _ point: SIMD2<Float>,
+        polygon: [SIMD2<Float>]
+    ) -> Bool {
+
+        var inside = false
+        var j = polygon.count - 1
+
+        for i in 0..<polygon.count {
+            let a = polygon[i]
+            let b = polygon[j]
+
+            if (a.y > point.y) != (b.y > point.y),
+               point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x {
+                inside.toggle()
+            }
+            j = i
+        }
+
+        return inside
+    }
+
+
+    // ========================================================
     // MARK: Car placement (drag to fit)
     // ========================================================
 
@@ -577,8 +779,8 @@ final class SurfaceScanDriver:
         }
 
         guard
-            let point =
-                surfacePoint(at: screenPoint)
+            let raw = surfacePoint(at: screenPoint),
+            let point = placementPoint(from: raw)
         else {
             return
         }
@@ -586,12 +788,13 @@ final class SurfaceScanDriver:
         mutate { $0.carDragPoint = point }
 
         carSpawnedForPlacement = true
+        placementRotating = false
 
         statusText =
-            "Drag the car to position it, then release to confirm."
+            "Drag Arlo to the perfect spot, then let go."
     }
 
-    /// Rotate the placed car (two-finger rotate) while positioning it.
+    /// Rotate the placed car — driven by a swipe AFTER the drag is released.
     func rotateCar(
         byRadians delta: Float
     ) {
@@ -621,13 +824,35 @@ final class SurfaceScanDriver:
         }
 
         guard
-            let point =
-                surfacePoint(at: screenPoint)
+            let raw = surfacePoint(at: screenPoint),
+            let point = placementPoint(from: raw)
         else {
             return
         }
 
         mutate { $0.carDragPoint = point }
+    }
+
+    /// Validates a raw surface raycast for car placement: rejects points that
+    /// sit up ON the obstacle (elevated above the locked base) so the car can't
+    /// be placed on the ramp, and clamps valid points down onto the base plane
+    /// so the car always rests flat on the play surface.
+    private func placementPoint(
+        from raw: SIMD3<Float>
+    ) -> SIMD3<Float>? {
+
+        guard let baseY = lockedSurfaceY() else {
+            return raw
+        }
+
+        // More than ~4 cm above the base → that's the obstacle, not the floor.
+        if raw.y > baseY + 0.04 {
+            statusText =
+                "Oops! Put Arlo on the floor, not on the ramp."
+            return nil
+        }
+
+        return SIMD3<Float>(raw.x, baseY, raw.z)
     }
 
     /// Raycast a screen point onto the detected (or estimated) horizontal plane.
@@ -663,31 +888,20 @@ final class SurfaceScanDriver:
         )
     }
 
-    /// Finger lifted after dragging — ask the player to confirm placement.
-    func endCarDrag() {
+    /// Finger lifted after a drag. Positioning is free-form (move + rotate as
+    /// much as you like) and the player commits with the Ready button, so this
+    /// is intentionally a no-op now.
+    func endCarDrag() {}
 
-        guard !carPlacementConfirmed else {
-            return
-        }
-
-        guard
-            let component =
-                scanRoot.components[
-                    SurfaceScanComponent.self
-                ],
-            component.carDragPoint != nil
-        else {
-            return
-        }
-
-        showPlacementConfirm = true
-    }
-
-    /// Confirm placement and move on to obstacle selection.
+    /// Confirm placement (from the Ready button) and move on to obstacle
+    /// selection.
     func confirmPlacement() {
+
+        guard carSpawnedForPlacement else { return }
 
         showPlacementConfirm = false
         carPlacementConfirmed = true
+        placementRotating = false
 
         mutate { component in
             component.carPlacementConfirmed = true
@@ -696,10 +910,10 @@ final class SurfaceScanDriver:
         }
 
         statusText =
-            "Car placed. Now tap the TOP of the obstacle."
+            "Car placed. Now tap where you want Arlo to go!"
     }
 
-    /// Dismiss the popup and keep adjusting the car.
+    /// Dismiss the popup and keep adjusting the car (stay in rotate mode).
     func cancelPlacement() {
         showPlacementConfirm = false
     }
@@ -793,14 +1007,21 @@ final class SurfaceScanDriver:
         finishPlaced = false
         didSucceed = false
         didTip = false
+        didFall = false
         showPlacementConfirm = false
         carPlacementConfirmed = false
         carSpawnedForPlacement = false
+        placementRotating = false
+        readyToLockSurface = false
         showFinishConfirm = false
         finishConfirmed = false
 
+        // Bring the coaching overlay back for the fresh scan.
+        coachingOverlay?.activatesAutomatically = true
+        coachingOverlay?.setActive(true, animated: true)
+
         statusText =
-            "Move device slowly to scan a floor or table…"
+            "Move your device around to start."
 
 
         // --------------------------------------------------
@@ -964,6 +1185,7 @@ final class SurfaceScanDriver:
 
         didSucceed = false
         didTip = false
+        didFall = false
 
         mutate { component in
             component.retryDriveRequested = true
@@ -1003,6 +1225,21 @@ final class SurfaceScanDriver:
     }
 
 
+    /// The car drove off the edge of the play surface and fell.
+    func reportFellOff() {
+
+        guard !didFall else {
+            return
+        }
+
+        didFall =
+            true
+
+        statusText =
+            "Uh oh! Arlo drove off the edge. Tap Retry to try again."
+    }
+
+
     func warn(
         _ message: String
     ) {
@@ -1019,6 +1256,26 @@ final class SurfaceScanDriver:
     // ========================================================
     // MARK: ARSessionDelegate
     // ========================================================
+
+    /// Fallback for enabling tap-to-lock: if tracking reaches `.normal` and the
+    /// coaching overlay never fired its deactivate (e.g. tracking was already
+    /// good), enable the tap prompt here so the player is never stuck.
+    func session(
+        _ session: ARSession,
+        cameraDidChangeTrackingState camera: ARCamera
+    ) {
+
+        if case .normal = camera.trackingState,
+           !hasLockedSurface,
+           !readyToLockSurface {
+
+            readyToLockSurface = true
+
+            statusText =
+                "Tap the table or floor where Arlo will play!"
+        }
+    }
+
 
     func session(
         _ session: ARSession,

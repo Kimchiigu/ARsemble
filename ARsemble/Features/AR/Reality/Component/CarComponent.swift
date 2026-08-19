@@ -23,4 +23,16 @@ struct CarComponent: Component {
 
     /// Current topple roll angle (radians), animated up to ~90°.
     var tipRoll: Float = 0
+
+    /// Latches true once the car drives off the edge of the play surface and
+    /// starts falling.
+    var falling = false
+
+    /// Downward speed while falling off the edge (m/s), accelerated by gravity.
+    var fallSpeed: Float = 0
+
+    /// Consecutive frames the car has been OFF the locked surface. Requires a
+    /// few in a row before falling, so plane-boundary jitter doesn't trigger a
+    /// false fall mid-table.
+    var offEdgeFrames = 0
 }
