@@ -317,28 +317,26 @@ struct SurfaceScannerView: View {
                             .clipShape(Capsule())
                             .foregroundStyle(.white)
                     }
-                    
-                    Spacer()
-                    
-                    // Retry the drive (car back to start) once it's actually driving.
-                    
-                }else{
-                    if driver.finishConfirmed && !driver.didSucceed {
-                        Button {
-                            driver.retryDrive()
-                        } label: {
-                            Label("Retry Drive", systemImage: "arrow.clockwise")
-                                .font(.title2)
-                                .bold()
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 16)
-                            
-                                .clipShape(Capsule())
-                                .foregroundStyle(.gray)
-                        }.buttonStyle(.glassProminent).tint(.white)
-                    }
                 }
-            }
+                Spacer()
+                
+                // Retry the drive (car back to start) once it's actually driving.
+                
+                if isDrivingState {
+                    Button {
+                        driver.retryDrive()
+                    } label: {
+                        Label("Retry Drive", systemImage: "arrow.clockwise")
+                            .font(.title2)
+                            .bold()
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
+                        
+                            .clipShape(Capsule())
+                            .foregroundStyle(.gray)
+                    }.buttonStyle(.glassProminent).tint(.white)
+                }
+                }
             
         }.padding(.horizontal, 30)
         
