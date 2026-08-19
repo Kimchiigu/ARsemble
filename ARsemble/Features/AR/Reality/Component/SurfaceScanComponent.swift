@@ -26,6 +26,16 @@ struct SurfaceScanComponent: Component {
 
     var lockedExtent: SIMD2<Float>?
 
+    /// World point the player TAPPED to lock the play surface. The lock system
+    /// anchors the y-zero base here (tap-to-lock, instead of auto-picking the
+    /// largest detected plane).
+    var lockSurfaceRequest: SIMD3<Float>?
+
+    /// The REAL detected plane the tap landed on (if any). Locking to it lets us
+    /// know the table's true boundary, so the car falls off at the edge instead
+    /// of floating over an infinite estimated plane.
+    var lockSurfacePlaneID: UUID?
+
 
     // MARK: - Car
 

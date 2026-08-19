@@ -120,10 +120,42 @@ struct CarDriveSystem: System {
             var newPos = current
 
 
+            // Is the car still over the REAL play surface (the locked table)?
+            // Past the detected edge it must fall — not float on an infinite
+            // estimated plane. A few consecutive off-edge frames are required so
+            // plane-boundary jitter can't trigger a false fall mid-table.
+            let onSurface =
+                presenter?.isWithinPlayableSurface(current) ?? true
+
+            if !car.tipped && !car.falling {
+                if onSurface {
+                    car.offEdgeFrames = 0
+                } else {
+                    car.offEdgeFrames += 1
+                    if car.offEdgeFrames >= 4 {
+                        car.falling = true
+                    }
+                }
+            }
+
+
             if car.tipped {
 
                 // Already toppled — keep falling over, no more driving.
                 car.tipRoll = min(car.tipRoll + toppleRate * dt, .pi / 2)
+
+            } else if car.falling {
+
+                // Drove off the edge — gravity takes over and it drops.
+                let gravity: Float = 3.0
+                car.fallSpeed += gravity * dt
+                newPos.y = current.y - car.fallSpeed * dt
+
+                // Carry a little forward momentum off the ledge.
+                newPos.x += direction.x * speed * dt * 0.4
+                newPos.z += direction.z * speed * dt * 0.4
+
+                presenter?.reportFellOff()
 
             } else {
 
@@ -170,7 +202,8 @@ struct CarDriveSystem: System {
 
 
             // Ride the surface height (ARKit raycast — follows the incline).
-            if let info {
+            // Skipped while falling so the car keeps dropping off the edge.
+            if !car.falling, let info {
                 let carLift = liftFor(entity)
                 let desiredY = info.height + carLift
                 let dy = desiredY - current.y
@@ -180,24 +213,27 @@ struct CarDriveSystem: System {
             }
 
 
-            // Orientation: align to the surface + face the target, plus the
-            // topple roll if it's tipping. Smoothed to avoid LiDAR jitter.
-            let targetOrientation =
-                surfaceOrientation(
-                    forward: direction,
-                    up: normal,
-                    roll: car.tipped ? car.tipRoll : 0
-                )
+            // Orientation: hold the current orientation while falling; otherwise
+            // align to the surface + face the target (+ topple roll). Smoothed.
+            if !car.falling {
+                let targetOrientation =
+                    surfaceOrientation(
+                        forward: direction,
+                        up: normal,
+                        roll: car.tipped ? car.tipRoll : 0
+                    )
 
-            let smoothed =
-                simd_slerp(
-                    entity.orientation(relativeTo: nil),
-                    targetOrientation,
-                    0.25
-                )
+                let smoothed =
+                    simd_slerp(
+                        entity.orientation(relativeTo: nil),
+                        targetOrientation,
+                        0.25
+                    )
+
+                entity.setOrientation(smoothed, relativeTo: nil)
+            }
 
             entity.setPosition(newPos, relativeTo: nil)
-            entity.setOrientation(smoothed, relativeTo: nil)
 
             stop(entity)
             entity.components.set(car)

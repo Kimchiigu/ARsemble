@@ -130,32 +130,36 @@ struct SurfaceScannerView: View {
             // They auto-hide when the phase advances.
             // ==================================================
             
-            if !driver.hasLockedSurface {
-                
+            // Tap to lock the play surface. (Apple's coaching overlay handles
+            // the "move device around" step; this shows once tracking is ready.)
+            if driver.readyToLockSurface &&
+                !driver.hasLockedSurface {
+
                 InstructionOverlayView(
-                    text: "Move device to start",
-                    image: "move-device"
-                )
-            }
-            
-            // Tap to place the car.
-            if driver.hasLockedSurface &&
-                !driver.carSpawnedForPlacement &&
-                !driver.carPlacementConfirmed {
-                
-                InstructionOverlayView(
-                    text: "Tap anywhere on the table to place Arlo’s car"
+                    text: "Tap the table to set Arlo's driving area"
                 )
                 .allowsHitTesting(false)
             }
-            
-            // Drag to position the car.
+
+            // Tap to drop the car onto the play surface.
+            if driver.hasLockedSurface &&
+                !driver.carSpawnedForPlacement &&
+                !driver.carPlacementConfirmed {
+
+                InstructionOverlayView(
+                    text: "Surface detected!\nTap anywhere on the table to place Arlo’s car."
+                )
+                .allowsHitTesting(false)
+            }
+
+            // Position the car: move (tap/drag) + rotate (two-finger twist),
+            // then hit the Ready button. One overlay for the whole state.
             if driver.hasLockedSurface &&
                 driver.carSpawnedForPlacement &&
                 !driver.carPlacementConfirmed {
-                
+
                 InstructionOverlayView(
-                    text: "Drag the car around to find the best spot!"
+                    text: "Drag to move. Twist with 2 fingers to rotate."
                 )
                 .allowsHitTesting(false)
             }
@@ -307,10 +311,49 @@ struct SurfaceScannerView: View {
         VStack(spacing: 12) {
             HStack(spacing: 16) {
                 if(!driver.didSucceed){
+                    if driver.hasLockedSurface &&
+                        driver.carSpawnedForPlacement &&
+                        !driver.carPlacementConfirmed {
+                        
+                        Button {
+                            router.dismissAR()
+                        } label: {
+                            Label("Rebuild Car", systemImage: "arrow.clockwise")
+                                .font(.title2)
+                                .bold()
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                                .clipShape(Capsule())
+                                .foregroundStyle(.black)
+                        }.buttonStyle(.glassProminent).tint(.white)
+                       
+                    }else{
+                        Button {
+                            router.dismissAR()   // back to the editor page
+                        } label: {
+                            Label("Rebuild Car", systemImage: "wrench.adjustable.fill")
+                                .font(.title2)
+                                .bold()
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                                .background(Color("Primary"))
+                                .clipShape(Capsule())
+                                .foregroundStyle(Color("Secondary"))
+                        }
+                    
+                    }
+                }
+                Spacer()
+                
+                // READY: commit the car's position. Only during positioning —
+                // once driving starts this slot becomes the Retry button.
+                if driver.hasLockedSurface &&
+                    driver.carSpawnedForPlacement &&
+                    !driver.carPlacementConfirmed {
                     Button {
-                        router.dismissAR()   // back to the editor page
+                        driver.confirmPlacement()
                     } label: {
-                        Label("Rebuild Car", systemImage: "wrench.adjustable.fill")
+                        Label("Ready!", systemImage: "checkmark.circle.fill")
                             .font(.title2)
                             .bold()
                             .padding(.horizontal, 20)
@@ -320,10 +363,9 @@ struct SurfaceScannerView: View {
                             .foregroundStyle(Color("Secondary"))
                     }
                 }
-                Spacer()
-                
+
                 // Retry the drive (car back to start) once it's actually driving.
-                
+
                 if isDrivingState {
                     Button {
                         driver.retryDrive()
