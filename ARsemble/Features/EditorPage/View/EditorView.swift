@@ -12,12 +12,31 @@ struct EditorView: View {
     /// screen — hands off to the AR screen.
     var onReady: (CarSpecComponent) -> Void = { _ in }
 
+    /// Used only to know whether the AR screen is currently pushed ON TOP of
+    /// this page. SwiftUI keeps this view alive underneath, and its
+    /// `RealityView` keeps a second RealityKit renderer running next to the
+    /// AR one — two RealityKit views competing for the same camera/renderer is
+    /// a known way to end up with a black camera background in the AR view.
+    @Environment(Router.self) private var router
+
     @State private var viewModel = EditorViewModel()
     @State private var showResetAlert = false
     @State private var phase: Phase = .editing
     @State private var curtain = false
 
+    /// Set once the curtain covers the screen, to tear the 3D viewer down
+    /// BEFORE the AR screen is created. Confirmed cause of the black camera
+    /// background: RealityKit builds its render graph per process, and a live
+    /// non-AR `RealityView` next to a new `ARView` leaves the AR passthrough
+    /// pass unable to build — 3D content still renders, the camera does not.
+    @State private var viewerRetired = false
+
     private enum Phase { case editing, presenting }
+
+    /// True while the AR screen is presented over this page.
+    private var isCoveredByAR: Bool {
+        router.arPresentation != nil
+    }
 
     var body: some View {
         ZStack {
@@ -47,8 +66,15 @@ struct EditorView: View {
                     VStack(spacing: 33){
                         FreeBubbleChat(text: "Build a car that has a low center of gravity.")
                         
-                        CarViewerView(viewModel: viewModel, isPresenting: phase != .editing)
-                            .frame(maxWidth: .infinity, maxHeight: 400)
+                        // Unmount the 3D viewer entirely while AR is on top,
+                        // so only ONE RealityKit renderer is alive at a time.
+                        if isCoveredByAR || viewerRetired {
+                            Color.clear
+                                .frame(maxWidth: .infinity, maxHeight: 400)
+                        } else {
+                            CarViewerView(viewModel: viewModel, isPresenting: phase != .editing)
+                                .frame(maxWidth: .infinity, maxHeight: 400)
+                        }
                     }
 
                     if phase == .editing {
@@ -115,18 +141,29 @@ struct EditorView: View {
             withAnimation(.easeInOut(duration: 0.45)) { curtain = true }
             try? await Task.sleep(for: .seconds(0.5))
             if Task.isCancelled { return }
-            // Screen fully covered — hand the built car to AR.
+
+            // Screen is fully covered: drop the RealityView now and give
+            // RealityKit a beat to dispose its renderer, so the ARView that
+            // follows is the only one alive when it builds its render graph.
+            viewerRetired = true
+            try? await Task.sleep(for: .seconds(0.35))
+            if Task.isCancelled { return }
+
+            // Hand the built car to AR.
             onReady(viewModel.carSpec)
             try? await Task.sleep(for: .seconds(0.6))
             if Task.isCancelled { return }
             // Quietly restore the editor (hidden behind AR) so it is in an
             // editable state when the player returns via "Rebuild Car".
+            // `isCoveredByAR` keeps the viewer unmounted until AR is dismissed.
             phase = .editing
             curtain = false
+            viewerRetired = false
         }
     }
 }
 
 #Preview {
     EditorView()
+        .environment(Router())
 }

@@ -16,10 +16,10 @@ struct SurfaceScannerView: View {
     /// Called when the level is completed — marks progress and leaves AR.
     private let onFinish: () -> Void
 
-    /// Used by "Rebuild it" to go back to the editor page.
-    @Environment(\.dismiss) private var dismiss
-
-    /// Stack navigation (used to pop back to the editor deterministically).
+    /// Stack navigation. Everything that leaves this page goes through the
+    /// Router — mixing `@Environment(\.dismiss)` with a Router-owned
+    /// `NavigationStack(path:)` meant the two disagreed about the current
+    /// path, and the exit buttons could end up doing nothing.
     @Environment(Router.self) private var router
 
     /// True while the post-level summary page is covering the screen.
@@ -136,7 +136,7 @@ struct SurfaceScannerView: View {
                     },
                     onRebuild: {
                         driver.cancelPlacement()
-                        dismiss()   // back to the editor page (car config kept)
+                        router.dismissAR()   // back to the editor (car config kept)
                     }
                 )
             }
@@ -165,7 +165,7 @@ struct SurfaceScannerView: View {
             }
             if showfinishOverlay{
                 FinishOverlayView(dismiss: {
-                    router.pop()
+                    router.dismissAR()
                     showfinishOverlay = false
                 }, showSummary: $showSummary)
             }
@@ -182,7 +182,7 @@ struct SurfaceScannerView: View {
                 },
                 onRebuild: {
                     showSummary = false
-                    router.pop()   // back to the editor page
+                    router.dismissAR()   // back to the editor page
                 }
             )
         }
@@ -207,13 +207,25 @@ struct SurfaceScannerView: View {
         .task {
             await CarBuilder.prepareWheelAssets()
         }
-        // When pushed onto the NavigationStack, the camera feed can bind to the
-        // still-animating layer and render black. Once the push transition has
-        // settled, rebind the camera feed. No-op on direct launch.
+        // Belt-and-braces rebinds of the camera feed. ARContainer already
+        // rebinds on every settled layout pass; these cover the case where the
+        // bounds never change but the drawable was still sizing.
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                driver.refreshCameraFeed()
+            for delay in [0.4, 1.0, 2.0] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    driver.refreshCameraFeed()
+                }
             }
+        }
+        // Hand the camera back the moment this screen goes away, so the
+        // editor's RealityView is never running next to a live ARSession.
+        //
+        // Presenting the summary page ON TOP of this screen also fires
+        // onDisappear — skip teardown then, or coming back from the summary
+        // would land on a dead session.
+        .onDisappear {
+            guard !showSummary else { return }
+            driver.teardown()
         }
         .onChange(of: driver.didSucceed) { _, didSucceed in
             if didSucceed {
@@ -232,7 +244,7 @@ struct SurfaceScannerView: View {
             HStack(spacing: 16) {
                 if(!driver.didSucceed){
                     Button {
-                        dismiss()   // back to the editor page
+                        router.dismissAR()   // back to the editor page
                     } label: {
                         Label("Rebuild Car", systemImage: "wrench.adjustable.fill")
                             .font(.title2)

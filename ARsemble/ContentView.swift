@@ -8,13 +8,38 @@
 import SwiftUI
 
 struct ContentView: View {
+
+    /// DEBUG A/B SWITCH — set to `true` to open AR straight from Home.
+    ///
+    /// The point is to reach AR WITHOUT the editor's `RealityView` ever having
+    /// been created in this process. RealityKit builds its render graph once
+    /// per process; if a non-AR `RealityView` initialises it first, the AR
+    /// passthrough pass (`arKitPassthrough.rematerial`) can fail to build and
+    /// the camera background stays black while 3D content still renders.
+    ///
+    /// - camera VISIBLE here, black after visiting the editor
+    ///   → the editor's RealityView is the cause.
+    /// - camera BLACK here too
+    ///   → the cause is elsewhere in app startup, not the editor.
+    ///
+    /// Set back to `false` once the answer is known.
+    private let debugSkipToAR = false
+
     @State private var router = Router()
     @State private var progress = LevelProgressStore()
 
     var body: some View {
         NavigationStack(path: $router.path) {
             HomeView { lesson in
-                router.push(.level(lesson: lesson))
+                if debugSkipToAR {
+                    router.presentAR(
+                        lesson: lesson,
+                        level: 1,
+                        spec: EntityFactory.placeholderCarSpec()
+                    )
+                } else {
+                    router.push(.level(lesson: lesson))
+                }
             }
             .toolbarVisibility(.hidden, for: .navigationBar)
             .navigationDestination(for: Route.self) { route in
@@ -24,6 +49,18 @@ struct ContentView: View {
         }
         .environment(router)
         .environment(progress)
+        .fullScreenCover(item: $router.arPresentation) { presentation in
+            SurfaceScannerView(carSpec: presentation.spec) {
+                progress.complete(
+                    level: presentation.level,
+                    lesson: presentation.lesson
+                )
+
+                router.returnToLevelMap(lesson: presentation.lesson)
+            }
+            .environment(router)
+            .environment(progress)
+        }
         .onAppear {
             SoundManager.shared.playBackgroundMusic(named: "music-bg")
         }
@@ -54,21 +91,11 @@ struct ContentView: View {
 
         case .editor(let lesson, let level):
             EditorView { spec in
-                router.push(.ar(
+                router.presentAR(
                     lesson: lesson,
                     level: level,
                     spec: spec
-                ))
-            }
-
-        case .ar(let lesson, let level, let spec):
-            SurfaceScannerView(carSpec: spec) {
-                progress.complete(
-                    level: level,
-                    lesson: lesson
                 )
-
-                router.returnToLevelMap(lesson: lesson)
             }
         }
     }

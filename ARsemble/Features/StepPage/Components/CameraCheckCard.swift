@@ -45,10 +45,27 @@ final class StepCameraSession: ObservableObject {
 
     /// Calls completion on the main actor only after AVFoundation has released
     /// the camera, so ARKit never starts alongside this capture session.
+    ///
+    /// `stopRunning()` on its own is NOT enough: the session keeps its
+    /// `AVCaptureDeviceInput`, which keeps the back camera bound to this
+    /// process. StepView also stays alive underneath the pushed AR screen, so
+    /// that input would outlive the page it belongs to. Removing the inputs
+    /// hands the camera back for real before ARKit asks for it. `start()`
+    /// re-adds the input, so returning to this page still works.
     func stop(completion: @escaping @MainActor () -> Void = {}) {
         sessionQueue.async { [captureSession] in
             if captureSession.isRunning {
                 captureSession.stopRunning()
+            }
+
+            if !captureSession.inputs.isEmpty {
+                captureSession.beginConfiguration()
+
+                for input in captureSession.inputs {
+                    captureSession.removeInput(input)
+                }
+
+                captureSession.commitConfiguration()
             }
 
             DispatchQueue.main.async {

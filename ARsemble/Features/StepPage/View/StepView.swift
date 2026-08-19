@@ -43,6 +43,11 @@ struct StepView: View {
             }
         }
         .navigationBarBackButtonHidden(true)
+        // The page stays alive underneath whatever is pushed on top of it, so
+        // release the camera here too — not only from the card.
+        .onDisappear {
+            camera.stop()
+        }
     }
 }
 

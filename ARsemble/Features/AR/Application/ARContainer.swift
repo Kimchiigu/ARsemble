@@ -7,6 +7,7 @@
 
 
 import SwiftUI
+import UIKit
 import RealityKit
 import ARKit
 
@@ -18,7 +19,15 @@ final class AttachAwareARView: ARView {
 
     var onReadyToAttach: (() -> Void)?
 
+    /// Fired on every layout pass after the first attach whose bounds actually
+    /// changed. The push transition resizes this view several times before it
+    /// settles; the owner uses this to re-assert the camera background against
+    /// the final drawable instead of betting on a single fixed delay.
+    var onBoundsSettled: ((CGRect) -> Void)?
+
     private var hasReportedReady = false
+
+    private var lastNotifiedBounds: CGRect = .zero
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
@@ -28,6 +37,22 @@ final class AttachAwareARView: ARView {
     override func layoutSubviews() {
         super.layoutSubviews()
         reportIfReady()
+
+        guard hasReportedReady,
+              bounds.width > 0,
+              bounds.height > 0,
+              bounds != lastNotifiedBounds
+        else {
+            return
+        }
+
+        lastNotifiedBounds = bounds
+
+        let settled = bounds
+
+        DispatchQueue.main.async { [weak self] in
+            self?.onBoundsSettled?(settled)
+        }
     }
 
     private func reportIfReady() {
@@ -63,10 +88,33 @@ struct ARContainer: UIViewRepresentable {
         Coordinator()
     }
 
+    /// A screen-sized starting frame. NEVER create the ARView at `.zero`:
+    /// when this screen is PUSHED onto a NavigationStack, `makeUIView` runs
+    /// before the destination has been laid out, so a zero-frame ARView binds
+    /// its Metal drawable to a zero-size surface. RealityKit then never starts
+    /// compositing the camera texture — the background stays black even though
+    /// tracking, raycasts and the SwiftUI overlays all work. On direct launch
+    /// the view is the window root and is sized in the same pass, which is why
+    /// the bug only showed up through the navigation flow.
+    private static func initialFrame() -> CGRect {
+
+        let scene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+            ?? UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .first
+
+        let size = scene?.screen.bounds.size
+            ?? CGSize(width: 1024, height: 768)
+
+        return CGRect(origin: .zero, size: size)
+    }
+
     func makeUIView(context: Context) -> AttachAwareARView {
 
         let arView = AttachAwareARView(
-            frame: .zero,
+            frame: Self.initialFrame(),
             cameraMode: .ar,
             automaticallyConfigureSession: false
         )
@@ -86,6 +134,13 @@ struct ARContainer: UIViewRepresentable {
         // the camera background black).
         arView.onReadyToAttach = { [weak coordinator = context.coordinator] in
             coordinator?.attachIfNeeded()
+        }
+
+        // Every time the layout settles at a new size, re-bind the camera feed.
+        // Replaces the single fixed-delay nudge, which silently missed whenever
+        // the push transition took longer than the guess.
+        arView.onBoundsSettled = { [weak driver = self.driver] _ in
+            driver?.refreshCameraFeed()
         }
 
         // --------------------------------------------------

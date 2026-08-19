@@ -12,7 +12,11 @@
 ///
 import RealityKit
 import ARKit
+import AVFoundation
 import Foundation
+import QuartzCore
+import UIKit
+import os
 final class SurfaceScanDriver:
     NSObject,
     ObservableObject,
@@ -84,8 +88,18 @@ final class SurfaceScanDriver:
         ARView?
 
 
-    /// Guards `refreshCameraFeed()` so the post-presentation rebind runs once.
-    private var didRefreshCamera = false
+    /// Rebinding the camera is retried a few times (throttled) because the
+    /// NavigationStack push resizes the view several times before it settles.
+    private var cameraRefreshCount = 0
+
+    private var lastCameraRefresh = Date.distantPast
+
+    private let maxCameraRefreshes = 8
+
+    private let log = Logger(
+        subsystem: "com.arsemble.ar",
+        category: "SurfaceScanDriver"
+    )
 
 
     // ========================================================
@@ -184,6 +198,10 @@ final class SurfaceScanDriver:
         self.arView =
             arView
 
+        log.debug(
+            "attach — bounds \(Double(arView.bounds.width), privacy: .public)x\(Double(arView.bounds.height), privacy: .public), camera auth \(AVCaptureDevice.authorizationStatus(for: .video).rawValue, privacy: .public), world tracking supported \(ARWorldTrackingConfiguration.isSupported, privacy: .public)"
+        )
+
 
         arView.session.delegate =
             self
@@ -250,22 +268,60 @@ final class SurfaceScanDriver:
     func refreshCameraFeed() {
 
         guard
-            !didRefreshCamera,
-            let arView
+            let arView,
+            cameraRefreshCount < maxCameraRefreshes,
+            Date().timeIntervalSince(lastCameraRefresh) > 0.35,
+            arView.bounds.width > 0,
+            arView.bounds.height > 0
         else {
             return
         }
 
-        didRefreshCamera = true
+        cameraRefreshCount += 1
+        lastCameraRefresh = Date()
 
         arView.cameraMode = .ar
         arView.environment.background = .cameraFeed()
 
-        // Re-run WITHOUT reset options: keep whatever tracking/scan is already
-        // underway, just rebind the renderer to the settled layer.
-        arView.session.run(
-            makeARConfiguration()
+        // Deliberately NO `session.run` here any more. Restarting a healthy
+        // session mid-render disturbs the passthrough pass and the console
+        // shows "Attempting to enable an already-enabled session" for every
+        // extra call. Restarts now happen only from the error / interruption
+        // handlers, where they are actually warranted.
+
+        log.debug(
+            """
+            refreshCameraFeed #\(self.cameraRefreshCount, privacy: .public) \
+            bounds \(Double(arView.bounds.width), privacy: .public)x\(Double(arView.bounds.height), privacy: .public) \
+            layer \(String(describing: type(of: arView.layer)), privacy: .public) \
+            sublayers \(arView.layer.sublayers?.count ?? 0, privacy: .public) \
+            inWindow \(arView.window != nil, privacy: .public) \
+            anchors \(arView.scene.anchors.count, privacy: .public) \
+            hasFrame \(arView.session.currentFrame != nil, privacy: .public)
+            """
         )
+    }
+
+
+    // ========================================================
+    // MARK: Teardown
+    // ========================================================
+
+    /// Stop the session and let go of the view. Called when the AR screen goes
+    /// away, so an ARSession never outlives the screen that owns it (and never
+    /// runs next to the editor's RealityView).
+    func teardown() {
+
+        guard let arView else {
+            return
+        }
+
+        arView.session.pause()
+        arView.session.delegate = nil
+
+        self.arView = nil
+
+        log.debug("teardown — ARSession paused and detached.")
     }
 
 
@@ -994,6 +1050,114 @@ final class SurfaceScanDriver:
         drop(
             anchors
         )
+    }
+
+
+    // ========================================================
+    // MARK: Session health
+    //
+    // Without these, a session that never starts (camera still held by
+    // another AVCaptureSession, permission denied, thermal/sensor failure)
+    // fails SILENTLY: the SwiftUI overlays keep rendering over a black
+    // background and nothing says why.
+    // ========================================================
+
+    // NOTE: do NOT implement `session(_:didUpdate frame:)` here. This delegate
+    // runs on the main queue, which is already carrying the RealityKit render
+    // loop and `ingest()`. Per-frame delivery backs up behind that work, ARKit
+    // starts retaining ARFrames ("the delegate is retaining N ARFrames") and
+    // then STOPS delivering camera images altogether — a black background with
+    // tracking still running. Whether frames are arriving is logged from
+    // `refreshCameraFeed()` instead, which costs nothing per frame.
+
+    func session(
+        _ session: ARSession,
+        didFailWithError error: Error
+    ) {
+
+        log.error(
+            "ARSession failed: \(error.localizedDescription, privacy: .public)"
+        )
+
+        statusText =
+            "AR could not start: \(error.localizedDescription)"
+
+        // A camera the app cannot get yet (another capture session is still
+        // tearing down) resolves on its own within a moment — retry once.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+
+            guard
+                let self,
+                let arView = self.arView
+            else {
+                return
+            }
+
+            arView.cameraMode = .ar
+            arView.environment.background = .cameraFeed()
+
+            arView.session.run(
+                self.makeARConfiguration(),
+                options: [
+                    .resetTracking,
+                    .removeExistingAnchors
+                ]
+            )
+        }
+    }
+
+
+    func sessionWasInterrupted(
+        _ session: ARSession
+    ) {
+
+        log.error(
+            "ARSession interrupted — the camera was taken by another client or the app resigned active."
+        )
+
+        statusText =
+            "Camera paused…"
+    }
+
+
+    func sessionInterruptionEnded(
+        _ session: ARSession
+    ) {
+
+        log.debug("ARSession interruption ended — restarting.")
+
+        guard let arView else {
+            return
+        }
+
+        arView.cameraMode = .ar
+        arView.environment.background = .cameraFeed()
+
+        // Only throw the scan away if there was nothing worth keeping. A plain
+        // backgrounding interruption should not cost the player their surface.
+        if hasLockedSurface {
+            arView.session.run(
+                makeARConfiguration()
+            )
+        } else {
+            arView.session.run(
+                makeARConfiguration(),
+                options: [
+                    .resetTracking,
+                    .removeExistingAnchors
+                ]
+            )
+
+            statusText =
+                "Move device slowly to scan a floor or table…"
+        }
+    }
+
+
+    func sessionShouldAttemptRelocalization(
+        _ session: ARSession
+    ) -> Bool {
+        true
     }
 
 

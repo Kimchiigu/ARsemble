@@ -17,7 +17,18 @@ enum Route: Hashable {
     case concept(lesson: Int, level: Int)
     case step(lesson: Int, level: Int)
     case editor(lesson: Int, level: Int)
-    case ar(lesson: Int, level: Int, spec: CarSpecComponent)
+}
+
+/// The AR screen is deliberately NOT a `Route`. Pushing it kept every earlier
+/// page — including the editor's `RealityView` and the step page's capture
+/// session — alive and attached underneath it, which is what left the AR
+/// camera background black. Presenting it full screen instead detaches the
+/// whole lesson stack from the window while AR owns the camera.
+struct ARPresentation: Identifiable, Hashable {
+    let id = UUID()
+    let lesson: Int
+    let level: Int
+    let spec: CarSpecComponent
 }
 
 /// Owns the NavigationStack path so pages can push/pop without bindings
@@ -26,6 +37,9 @@ enum Route: Hashable {
 @Observable
 final class Router {
     var path: [Route] = []
+
+    /// Non-nil while the AR screen is presented over the stack.
+    var arPresentation: ARPresentation?
 
     func push(_ route: Route) {
         path.append(route)
@@ -40,8 +54,23 @@ final class Router {
         path.removeAll()
     }
 
+    /// Show the AR screen over the whole stack.
+    func presentAR(lesson: Int, level: Int, spec: CarSpecComponent) {
+        arPresentation = ARPresentation(
+            lesson: lesson,
+            level: level,
+            spec: spec
+        )
+    }
+
+    /// Leave AR and reveal the editor underneath again.
+    func dismissAR() {
+        arPresentation = nil
+    }
+
     /// AR success → drop everything and land back on this lesson's level map.
     func returnToLevelMap(lesson: Int) {
+        arPresentation = nil
         path = [.level(lesson: lesson)]
     }
 }
