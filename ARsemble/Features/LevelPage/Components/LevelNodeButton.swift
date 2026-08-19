@@ -12,14 +12,13 @@ import SwiftUI
 struct LevelIslandCard: View {
     let node: LevelNode
     let state: LevelNodeState
-    let islandImage: String
     let islandHeight: CGFloat
     var action: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 12) {
             ZStack {
-                Image(islandImage)
+                Image(node.islandImage)
                     .resizable()
                     .scaledToFit()
                     .frame(height: islandHeight)
@@ -77,25 +76,15 @@ struct LevelIslandCard: View {
 #Preview {
     HStack(spacing: 40) {
         LevelIslandCard(
-            node: LevelNode(
-                id: 1,
-                title: "Hill Climb",
-                description: "Learn about the center of gravity on an inclined plane."
-            ),
+            node: LevelMap.nodes(for: 1)[0],
             state: .unlocked,
-            islandImage: "island1",
             islandHeight: 240
         )
         .frame(width: 280)
 
         LevelIslandCard(
-            node: LevelNode(
-                id: 2,
-                title: "Down Hill",
-                description: "Learn about the center of gravity on an inclined plane."
-            ),
+            node: LevelMap.nodes(for: 1)[1],
             state: .locked,
-            islandImage: "island1",
             islandHeight: 240
         )
         .frame(width: 280)

@@ -12,6 +12,10 @@ struct LevelNode: Identifiable {
     let id: Int
     let title: String
     let description: String
+
+    /// Island artwork for THIS level. Every level has its own picture, so the
+    /// name lives on the node rather than being derived from the lesson.
+    let islandImage: String
 }
 
 /// How a node renders on the level scroll.
@@ -30,18 +34,51 @@ enum LevelMap {
         3: "Momentum"
     ]
 
-    /// Island image name per lesson — update to match your actual asset names.
-    static let lessonImages: [Int: String] = [
-        1: "island1",
-        2: "island2",
-        3: "island3"
+    /// The levels of one lesson, in map order.
+    ///
+    /// Lessons without their own artwork yet fall back to lesson 1's set, so
+    /// the screen still renders instead of coming up empty. Give a lesson its
+    /// own entry in `lessonNodes` as soon as its islands are in the catalog.
+    static func nodes(for lesson: Int) -> [LevelNode] {
+        lessonNodes[lesson] ?? lesson1
+    }
+
+    private static let lessonNodes: [Int: [LevelNode]] = [
+        1: lesson1
     ]
 
-    static let nodes: [LevelNode] = [
-        LevelNode(id: 1, title: "Hill Climb",   description: "Learn about the center of gravity on an inclined plane."),
-        LevelNode(id: 2, title: "Down Hill",    description: "Learn about the center of gravity on an inclined plane."),
-        LevelNode(id: 3, title: "Log Disaster", description: "Learn about the center of gravity on an inclined plane."),
-        LevelNode(id: 4, title: "Down Hill",    description: "Learn about the center of gravity on an inclined plane."),
-        LevelNode(id: 5, title: "Log Disaster", description: "Learn about the center of gravity on an inclined plane.")
+    // MARK: - Lesson 1 — Center of Gravity
+
+    private static let lesson1: [LevelNode] = [
+        LevelNode(
+            id: 1,
+            title: "Hill Climb",
+            description: "Help Arlo drive up the hill without flipping backward.",
+            islandImage: "island1-1"
+        ),
+        LevelNode(
+            id: 2,
+            title: "Down Hill",
+            description: "Guide Arlo safely down the hill without tumbling.",
+            islandImage: "island1-2"
+        ),
+        LevelNode(
+            id: 3,
+            title: "Log Disaster",
+            description: "Help Arlo cross logs and rocks without rolling over.",
+            islandImage: "island1-3"
+        ),
+        LevelNode(
+            id: 4,
+            title: "Tilted Trail",
+            description: "Keep Arlo steady as he navigates a tilted cliffside road.",
+            islandImage: "island1-4"
+        ),
+        LevelNode(
+            id: 5,
+            title: "The Bridge",
+            description: "Help Arlo cross a narrow wooden log over a deep river.",
+            islandImage: "island1-5"
+        )
     ]
 }

@@ -20,8 +20,8 @@ final class HomeViewModel {
 
     /// Three lessons -> the carousel loops 1 -> 2 -> 3 -> 1 ...
     static let sample: [HomeModel] = [
-        HomeModel(lessonNumber: 1, title: "Center of Gravity", imageName: "island1", levelCount: 10),
-        HomeModel(lessonNumber: 2, title: "Friction",          imageName: "island2", levelCount: 10),
-        HomeModel(lessonNumber: 3, title: "Momentum",          imageName: "island2", levelCount: 10)
+        HomeModel(lessonNumber: 1, title: "Center of Gravity", imageName: "island1", levelCount: 5),
+        HomeModel(lessonNumber: 2, title: "Friction",          imageName: "island2", levelCount: 5),
+        HomeModel(lessonNumber: 3, title: "Momentum",          imageName: "island2", levelCount: 5)
     ]
 }

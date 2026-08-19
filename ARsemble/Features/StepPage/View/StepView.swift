@@ -18,6 +18,19 @@ struct StepView: View {
     @StateObject private var camera = StepCameraSession()
     @State private var isOpeningEditor = false
 
+    // MARK: Layout
+
+    /// Width of the left column (speech bubble + mascot). Fixed so the bubble
+    /// and the mascot always share one edge instead of each sizing themselves.
+    fileprivate static let mascotColumnWidth: CGFloat = 340
+
+    /// Cap for the mascot artwork. The images have different aspect ratios, so
+    /// this bounds the box and `scaledToFit` keeps each one whole inside it.
+    fileprivate static let mascotHeight: CGFloat = 330
+
+    /// How far the bubble's tail hangs below the bubble.
+    fileprivate static let bubbleTailDrop: CGFloat = 18
+
     var body: some View {
         ZStack {
             Color("Background")
@@ -83,48 +96,64 @@ private extension StepView {
     var step: Step { viewModel.currentStepData }
     
     var mascotSection: some View {
-        
+
         VStack(alignment: .leading, spacing: 0) {
-            
+
             stepBubble
 
             if let mascot = step.mascot {
                 Image(mascot)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 336, height: 369)
-                    .padding(.top, 50)
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: Self.mascotHeight
+                    )
+                    // Clears the tail hanging off the bubble above.
+                    .padding(.top, Self.bubbleTailDrop + 12)
             }
+
+            Spacer(minLength: 0)
         }
-        .frame(width: 280)
+        .frame(width: Self.mascotColumnWidth, alignment: .top)
     }
     
+    /// The bubble sizes itself around its text.
+    ///
+    /// The old version drew a fixed 347×119 rounded rect and then pushed the
+    /// text around with offsets, so the two moved independently: any title
+    /// that needed a second line spilled straight out of the bubble. Now the
+    /// rect is a `.background` of the text, so it can never be too small, and
+    /// the tail is positioned relative to the bubble's real bottom edge.
     var stepBubble: some View {
-        
-        return VStack(alignment: .leading, spacing: 4) {
+
+        VStack(alignment: .leading, spacing: 6) {
+
             Text(step.title)
-                .font(.system(size: 24, weight: .bold))
-            
+                .font(.system(size: 22, weight: .bold))
+                // Wrap onto more lines instead of truncating.
+                .fixedSize(horizontal: false, vertical: true)
+
             if !step.desc.isEmpty {
                 Text(step.desc)
-                    .font(.system(size: 24, weight: .medium))
+                    .font(.system(size: 19, weight: .medium))
+                    .fixedSize(horizontal: false, vertical: true)
             }
-        }.offset(x: -20, y: 20)
+        }
         .foregroundStyle(.white)
         .multilineTextAlignment(.leading)
-        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 18)
         .background(
-            RoundedRectangle(cornerRadius: 30)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(Color("BubbleLeft"))
-                .frame(width: 347, height:119)
-                .padding(.top, 30)
         )
         .overlay(alignment: .bottomLeading) {
             BubbleTailDown()
                 .fill(Color("BubbleLeft"))
-                .frame(width: 30, height: 30)
-                .offset(x:40, y: 40)
-                
+                .frame(width: 28, height: Self.bubbleTailDrop)
+                .offset(x: 40, y: Self.bubbleTailDrop)
         }
     }
 }

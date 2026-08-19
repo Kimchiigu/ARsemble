@@ -13,7 +13,10 @@ import Observation
 @Observable
 final class LevelViewModel {
 
-    let nodes: [LevelNode] = LevelMap.nodes
+    /// The levels of one lesson, each carrying its own island artwork.
+    func nodes(for lesson: Int) -> [LevelNode] {
+        LevelMap.nodes(for: lesson)
+    }
 
     func state(
         for node: LevelNode,

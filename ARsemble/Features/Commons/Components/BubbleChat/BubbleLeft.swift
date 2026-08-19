@@ -20,7 +20,8 @@ struct Triangle: Shape {
 
 struct BubbleLeft: View {
     let text: String
-    var mascot: String = "mascot"
+    /// "mascot" is not in the asset catalog — the poses are mascot1…mascot5.
+    var mascot: String = "mascot1"
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {

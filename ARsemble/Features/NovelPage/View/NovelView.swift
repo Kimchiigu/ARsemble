@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct NovelView: View {
-    let pages = ["novelLevel1-1", "novelLevel1-2", "novelLevel1-3"]
+    let pages = ["novelLevel1-1", "novelLevel1-2", "novelLevel1-3", "novelLevel1-4"]
 
     /// "Finish" on the last page and "Skip Story" both continue to Concept.
     var onContinue: () -> Void = {}

@@ -29,10 +29,6 @@ struct LevelView: View {
         cardTopPadding + islandHeight * 0.55
     }
 
-    private var islandImage: String {
-        LevelMap.lessonImages[lesson] ?? "island1"
-    }
-
     var body: some View {
         ZStack(alignment: .topLeading) {
             LinearGradient(
@@ -56,7 +52,7 @@ struct LevelView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 0) {
 
-                ForEach(Array(viewModel.nodes.enumerated()), id: \.element.id) { index, node in
+                ForEach(viewModel.nodes(for: lesson)) { node in
 
                     LevelIslandCard(
                         node: node,
@@ -65,7 +61,6 @@ struct LevelView: View {
                             lesson: lesson,
                             progress: progress
                         ),
-                        islandImage: islandImage,
                         islandHeight: islandHeight
                     ) {
                         SoundManager.shared.playSound(named: "click")

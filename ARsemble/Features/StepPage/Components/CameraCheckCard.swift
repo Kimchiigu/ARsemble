@@ -190,6 +190,7 @@ private struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
 
     final class PreviewView: UIView {
+
         override class var layerClass: AnyClass {
             AVCaptureVideoPreviewLayer.self
         }
@@ -197,29 +198,94 @@ private struct CameraPreview: UIViewRepresentable {
         var previewLayer: AVCaptureVideoPreviewLayer {
             layer as! AVCaptureVideoPreviewLayer
         }
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+
+            // The connection only exists once the session has an input and is
+            // running, which happens AFTER this view is built. Without this the
+            // rotation is applied to nothing and the feed keeps its default.
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(sessionStarted),
+                name: AVCaptureSession.didStartRunningNotification,
+                object: nil
+            )
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        @objc
+        private func sessionStarted() {
+            DispatchQueue.main.async { [weak self] in
+                self?.applyRotation()
+            }
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            applyRotation()
+        }
+
+        /// `layoutSubviews`, not `updateUIView`: the first `updateUIView` runs
+        /// before the view has a window, so the interface orientation is
+        /// unknown and the old code fell through to its `.portrait` default —
+        /// which is exactly a 90° tilted feed on a landscape iPad.
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            applyRotation()
+        }
+
+        private func applyRotation() {
+
+            guard let connection = previewLayer.connection else {
+                return
+            }
+
+            let orientation = window?.windowScene?.interfaceOrientation
+                ?? UIApplication.shared.connectedScenes
+                    .compactMap { $0 as? UIWindowScene }
+                    .first?
+                    .interfaceOrientation
+                ?? .landscapeLeft
+
+            // UIInterfaceOrientation and the capture rotation angle do NOT
+            // line up name for name — the two landscape cases are mirrored.
+            // Mapping `.landscapeLeft` straight onto `.landscapeLeft` is the
+            // other half of this bug and flips the feed by 180°.
+            let angle: CGFloat
+
+            switch orientation {
+            case .portrait:           angle = 90
+            case .portraitUpsideDown: angle = 270
+            case .landscapeLeft:      angle = 180
+            case .landscapeRight:     angle = 0
+            default:                  angle = 0
+            }
+
+            guard
+                connection.isVideoRotationAngleSupported(angle),
+                connection.videoRotationAngle != angle
+            else {
+                return
+            }
+
+            connection.videoRotationAngle = angle
+        }
     }
 
     func makeUIView(context: Context) -> PreviewView {
-        let view = PreviewView()
+        let view = PreviewView(frame: .zero)
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
         return view
     }
 
     func updateUIView(_ uiView: PreviewView, context: Context) {
-        // Keep the feed upright for the current interface orientation.
-        let orientation: AVCaptureVideoOrientation
-        switch uiView.window?.windowScene?.interfaceOrientation {
-        case .portraitUpsideDown: orientation = .portraitUpsideDown
-        case .landscapeLeft: orientation = .landscapeLeft
-        case .landscapeRight: orientation = .landscapeRight
-        default: orientation = .portrait
-        }
-
-        if let connection = uiView.previewLayer.connection,
-           connection.isVideoOrientationSupported {
-            connection.videoOrientation = orientation
-        }
+        uiView.setNeedsLayout()
     }
 }
 
