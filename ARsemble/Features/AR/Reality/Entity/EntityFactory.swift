@@ -159,113 +159,90 @@ struct EntityFactory {
     }
     
     
+    /// Height (metres) the loaded flag is normalised to.
+    private static let flagHeight: Float = 0.18
+
+    /// Cached flag model so it's only loaded from disk once.
+    @MainActor private static var flagTemplate: ModelEntity?
+
+    /// Finish marker = the "bendera" flag usdz standing on the obstacle top.
+    ///
+    /// The usdz loads asynchronously, so the marker entity is returned
+    /// immediately (empty) and the flag is attached as a child once it's ready.
+    /// CarDriveSystem keeps moving/positioning the marker, and the flag rides
+    /// along as a child.
     static func createFinishMarker(
-        in root: Entity
-        , finishName: String
+        in root: Entity,
+        finishName: String
     ) -> ModelEntity {
 
         let marker = ModelEntity()
         marker.name = finishName
 
-        // ============================================================
-        // MARK: Appearance
-        // ============================================================
-
-        let green = UIColor.systemGreen
-
-        // Main translucent material
-        var material = UnlitMaterial(
-            color: green.withAlphaComponent(0.72)
-        )
-
-        material.blending = .transparent(opacity: 0.72)
-
-        // ============================================================
-        // MARK: Half-capsule geometry
-        //
-        // Shape:
-        //
-        //        ┌──────────┐
-        //        │          │
-        //        │          │
-        //        │          │
-        //        ╰──────────╯
-        //
-        // Flat top + vertical sides + rounded bottom.
-        // ============================================================
-
-        let width: Float = 0.06
-        let height: Float = 0.05
-        let depth: Float = 0.02
-
-        let radius = width / 2
-
-        let mesh = makeHalfCapsuleMesh(
-            width: width,
-            height: height,
-            depth: depth,
-            radius: radius
-        )
-
-        let body = ModelEntity(
-            mesh: mesh,
-            materials: [material]
-        )
-
-        marker.addChild(body)
-
-        // ============================================================
-        // MARK: Inner glow
-        // ============================================================
-
-        var glowMaterial = UnlitMaterial(
-            color: green.withAlphaComponent(0.16)
-        )
-
-        glowMaterial.blending = .transparent(opacity: 0.16)
-
-        let glowMesh = MeshResource.generateBox(
-            size: [
-                width * 0.92,
-                height * 0.80,
-                depth * 1.5
-            ]
-        )
-
-        let glow = ModelEntity(
-            mesh: glowMesh,
-            materials: [glowMaterial]
-        )
-
-        glow.position.y = height * 0.38
-        marker.addChild(glow)
-
-        // ============================================================
-        // MARK: Point light
-        // ============================================================
-
-        let light = PointLight()
-
-        light.light.color = green
-        light.light.intensity = 2500
-        light.light.attenuationRadius = 0.45
-
-        light.position = [
-            0,
-            height * 0.45,
-            0.04
-        ]
-
-        marker.addChild(light)
-
-        // ============================================================
-        // Add to scene
-        // ============================================================
-
         root.addChild(marker)
+
+        // Load + attach the flag model (cached after the first load).
+        attachFlag(to: marker)
 
         return marker
     }
-    
-    
+
+
+    /// Attaches the flag model to the marker, cloning the cached template if
+    /// already loaded, otherwise loading it asynchronously first. Nonisolated so
+    /// it can be called from the (nonisolated) ECS update; all RealityKit work
+    /// happens inside the main-actor Task.
+    private static func attachFlag(to marker: ModelEntity) {
+
+        Task { @MainActor in
+
+            let template: ModelEntity
+
+            if let cached = flagTemplate {
+                template = cached
+            } else {
+                do {
+                    template = try await ModelEntity(named: "bendera")
+                    flagTemplate = template
+                } catch {
+                    print("EntityFactory: ✗ failed to load flag 'bendera': \(error)")
+                    return
+                }
+            }
+
+            addFlagClone(template, to: marker)
+        }
+    }
+
+
+    /// Clones the flag, scales it to `flagHeight`, and stands its base at the
+    /// marker origin (which sits on the obstacle's top surface).
+    @MainActor
+    private static func addFlagClone(
+        _ template: ModelEntity,
+        to marker: ModelEntity
+    ) {
+
+        // Don't double-add if this runs twice.
+        guard marker.findEntity(named: "FinishFlagModel") == nil else { return }
+
+        let flag = template.clone(recursive: true)
+        flag.name = "FinishFlagModel"
+
+        // Measure the model at its native size, then normalise.
+        let bounds = flag.visualBounds(recursive: true, relativeTo: nil)
+        let dim = bounds.max - bounds.min
+        let nativeHeight = max(dim.y, 0.0001)
+        let scale = flagHeight / nativeHeight
+        flag.scale = SIMD3<Float>(repeating: scale)
+
+        // Centre it horizontally over the marker and sit its base at y = 0.
+        flag.position = SIMD3<Float>(
+            -bounds.center.x * scale,
+            -bounds.min.y * scale,
+            -bounds.center.z * scale
+        )
+
+        marker.addChild(flag)
+    }
 }

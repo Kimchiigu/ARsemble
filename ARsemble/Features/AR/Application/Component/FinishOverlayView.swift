@@ -35,7 +35,7 @@ struct FinishOverlayView: View {
                                 .padding(.vertical, 16)
                                 .glassEffect()
                                 .clipShape(Capsule())
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(Color("Secondary"))
                                 .frame(width: 220)
                         }
                         
