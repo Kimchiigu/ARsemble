@@ -13,6 +13,7 @@ struct BackButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "rectangle.portrait.and.arrow.forward")
+                .rotationEffect(.degrees(180))
                 .font(.title)
                 .frame(width: 50, height: 50)
                 .padding(5)

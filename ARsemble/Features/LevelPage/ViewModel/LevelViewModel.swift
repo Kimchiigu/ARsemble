@@ -8,8 +8,8 @@
 import Foundation
 import Observation
 
-/// Derives each node's on-map state from the shared progress store. The
-/// unlock logic itself lives in LevelProgressStore (single source of truth).
+/// Derives each node's on-map state from the shared progress store.
+/// The unlock logic itself lives in LevelProgressStore.
 @Observable
 final class LevelViewModel {
 
@@ -23,9 +23,25 @@ final class LevelViewModel {
         lesson: Int,
         progress: LevelProgressStore
     ) -> LevelNodeState {
+
+        // Level has not been implemented yet.
+        // It must remain locked regardless of progress.
+        guard node.isImplemented else {
+            return .locked
+        }
+
+        // Completed levels remain playable so the user
+        // can replay them.
         if progress.isCompleted(node.id, lesson: lesson) {
             return .completed
         }
-        return progress.isUnlocked(node.id, lesson: lesson) ? .unlocked : .locked
+
+        // Implemented and unlocked level.
+        if progress.isUnlocked(node.id, lesson: lesson) {
+            return .unlocked
+        }
+
+        // Implemented but not yet unlocked.
+        return .locked
     }
 }

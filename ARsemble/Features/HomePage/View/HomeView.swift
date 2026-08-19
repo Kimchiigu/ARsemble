@@ -9,11 +9,11 @@ import SwiftUI
 
 struct HomeView: View {
     var onStartLesson: (Int) -> Void = { _ in }
-
+    
     @State private var viewModel = HomeViewModel()
     @State private var scrollID: Int?
     @Environment(LevelProgressStore.self) private var progress
-
+    
     private var padded: [HomeModel] {
         guard let f = viewModel.lessons.first,
               let l = viewModel.lessons.last else {
@@ -21,7 +21,7 @@ struct HomeView: View {
         }
         return [l] + viewModel.lessons + [f]
     }
-
+    
     var body: some View {
         ZStack {
             LinearGradient(
@@ -33,12 +33,18 @@ struct HomeView: View {
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-
+            
+            Image("awan")
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+            
             GeometryReader { geo in
                 let spacing: CGFloat = 32
                 let sideInset = geo.size.width * 0.1
                 let cardWidth = geo.size.width - (sideInset * 2) - spacing
-
+                
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: spacing) {
                         ForEach(
@@ -64,12 +70,19 @@ struct HomeView: View {
                     }
                     .scrollTargetLayout()
                 }
-                .contentMargins(.horizontal, sideInset, for: .scrollContent)
+                .contentMargins(
+                    .horizontal,
+                    sideInset,
+                    for: .scrollContent
+                )
                 .scrollTargetBehavior(.viewAligned)
                 .scrollPosition(id: $scrollID)
-                .onAppear { scrollID = 1 }
+                .onAppear {
+                    scrollID = 1
+                }
                 .onChange(of: scrollID) { _, new in
                     guard let new else { return }
+                    
                     if new == 0 {
                         jump(to: viewModel.lessons.count)
                     } else if new == padded.count - 1 {
@@ -79,18 +92,18 @@ struct HomeView: View {
             }
         }
     }
-
+    
     private func hasContent(_ lesson: HomeModel) -> Bool {
         lesson.lessonNumber == 1
     }
-
+    
     private func jump(to index: Int) {
         DispatchQueue.main.asyncAfter(
             deadline: .now() + 0.35
         ) {
             var tx = Transaction()
             tx.disablesAnimations = true
-
+            
             withTransaction(tx) {
                 scrollID = index
             }
@@ -107,25 +120,36 @@ struct LessonCard: View {
     let total: Int
     var locked: Bool = false
     var onStart: () -> Void = {}
-
+    
+    @State private var isFloating = false
+    
     private var attributedLessonTitle: AttributedString {
         let label = "Lesson \(num): "
         var attrStr = AttributedString(label + title)
+        
         if let labelRange = attrStr.range(of: label) {
-            attrStr[labelRange].font = .system(size: 28, weight: .medium)
+            attrStr[labelRange].font = .system(
+                size: 28,
+                weight: .medium
+            )
             attrStr[labelRange].foregroundColor = .primary
         }
+        
         if let titleRange = attrStr.range(of: title) {
-            attrStr[titleRange].font = .system(size: 28, weight: .bold)
+            attrStr[titleRange].font = .system(
+                size: 28,
+                weight: .bold
+            )
             attrStr[titleRange].foregroundColor = .primary
         }
+        
         return attrStr
     }
-
+    
     var body: some View {
         VStack(spacing: 16) {
             Spacer()
-
+            
             ZStack {
                 Image(image)
                     .resizable()
@@ -136,14 +160,23 @@ struct LessonCard: View {
                     )
                     .saturation(locked ? 0 : 1)
                     .brightness(locked ? -0.15 : 0)
-
+                    .offset(y: isFloating ? -15 : 15)
+                    .animation(
+                        .easeInOut(duration: 1.5)
+                            .repeatForever(autoreverses: true),
+                        value: isFloating
+                    )
+                
                 if locked {
                     VStack(spacing: 10) {
                         Image("lock")
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 64, height: 64)
-
+                            .frame(
+                                width: 64,
+                                height: 64
+                            )
+                        
                         Text("Finish the previous lesson to unlock")
                             .font(
                                 .system(
@@ -157,9 +190,12 @@ struct LessonCard: View {
                     }
                 }
             }
-
+            .onAppear {
+                isFloating = true
+            }
+            
             Text(attributedLessonTitle)
-
+            
             HStack(spacing: 6) {
                 Text("Completed:")
                     .font(
@@ -168,7 +204,7 @@ struct LessonCard: View {
                             weight: .medium
                         )
                     )
-
+                
                 Text("\(done)/\(total)")
                     .font(
                         .system(
@@ -178,12 +214,12 @@ struct LessonCard: View {
                     )
             }
             .foregroundStyle(.secondary)
-
+            
             StartButton(action: locked ? {} : onStart)
                 .padding(.top, 8)
                 .opacity(locked ? 0.4 : 1)
                 .disabled(locked)
-
+            
             Spacer()
         }
         .padding()

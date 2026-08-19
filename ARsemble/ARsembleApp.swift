@@ -20,7 +20,7 @@ struct ARsembleApp: App {
     /// It spawns the placeholder car (no editor spec), so you land directly on
     /// surface scanning. Set back to `false` to restore the normal app flow.
     /// The Router navigation stack is left completely intact either way.
-    private let launchARDirectly = true
+    private let launchARDirectly = false
 
     /// Stored, not created inline in `body`: a `Router()` built inside the
     /// view builder is a brand-new object on every body evaluation, so any
