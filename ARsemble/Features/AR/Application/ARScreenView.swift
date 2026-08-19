@@ -266,15 +266,15 @@ struct SurfaceScannerView: View {
                             Button {
                                 driver.retryDrive()
                             } label: {
-                                Label("Retry Drive", systemImage: "arrow.2.circlepath.circle.fill")
+                                Label("Retry Drive", systemImage: "arrow.clockwise")
                                     .font(.title2)
                                     .bold()
                                     .padding(.horizontal, 20)
                                     .padding(.vertical, 16)
                                     .background(Color("Primary"))
                                     .clipShape(Capsule())
-                                    .foregroundStyle(.white)
-                            }
+                                    .foregroundStyle(.gray)
+                            }.buttonStyle(.glassProminent).tint(.white)
                         }
                     }
                 }

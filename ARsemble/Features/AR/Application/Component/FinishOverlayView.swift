@@ -46,7 +46,7 @@ struct FinishOverlayView: View {
                                     .bold()
                                     .padding(.horizontal, 20)
                                     .padding(.vertical, 16)
-                                    .background(.orange)
+                                    .background(Color("Primary"))
                                     .clipShape(Capsule())
                                     .foregroundStyle(.white)
                             }
