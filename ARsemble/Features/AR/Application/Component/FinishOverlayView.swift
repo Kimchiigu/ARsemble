@@ -16,7 +16,7 @@ struct FinishOverlayView: View {
                     .opacity(0.35)
                     .ignoresSafeArea()
 
-                VStack(alignment: .center, spacing: 10) {
+                VStack(alignment: .center, spacing: 134) {
                     Text("Level Cleared")
                     .font(.system(size: 64, weight: .bold))
                         .foregroundColor(.white)
@@ -35,13 +35,14 @@ struct FinishOverlayView: View {
                                 .padding(.vertical, 16)
                                 .glassEffect()
                                 .clipShape(Capsule())
-                                .foregroundStyle(.white)
+                                .foregroundStyle(.gray)
+                                .frame(width: 220)
                         }
                         
                             Button {
                               showSummary = true
                             } label: {
-                                Label("Continue", systemImage: "arrow.2.circlepath.circle.fill")
+                                Label("Continue", systemImage: "arrow.right")
                                     .font(.title2)
                                     .bold()
                                     .padding(.horizontal, 20)
@@ -49,6 +50,7 @@ struct FinishOverlayView: View {
                                     .background(Color("Primary"))
                                     .clipShape(Capsule())
                                     .foregroundStyle(.white)
+                                    .frame(width: 220)
                             }
                         
                         
@@ -57,4 +59,10 @@ struct FinishOverlayView: View {
                 }
         
         }
+}
+
+#Preview {
+    FinishOverlayView(dismiss: {
+        
+    }, showSummary: .constant(false))
 }

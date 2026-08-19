@@ -14,9 +14,9 @@ enum DimensionLevel: Int, CaseIterable, Identifiable {
     
     var valueInCm: Double {
         switch self {
-        case .low: return 15.0
-        case .medium: return 21.0
-        case .high: return 27.0
+        case .low: return 8.0
+        case .medium: return 15.0
+        case .high: return 21.0
         }
     }
     

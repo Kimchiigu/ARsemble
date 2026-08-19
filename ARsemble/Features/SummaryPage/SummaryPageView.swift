@@ -46,7 +46,7 @@ struct SummaryPageView: View{
                             .frame(width: 190)
                 }.buttonStyle(.glassProminent).tint(Color("Primary"))
             }
-        }.padding(32)
+        }.padding(32).background(Color("Background"))
     }
 }
 
