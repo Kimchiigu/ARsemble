@@ -73,4 +73,17 @@ final class Router {
         arPresentation = nil
         path = [.level(lesson: lesson)]
     }
+
+    /// Back button in Step / Editor → jump straight to the level page,
+    /// trimming everything pushed after it (novel, concept, step, editor…).
+    func popToLevel() {
+        if let idx = path.firstIndex(where: {
+            if case .level = $0 { return true }
+            return false
+        }) {
+            path = Array(path.prefix(idx + 1))
+        } else {
+            path.removeAll()
+        }
+    }
 }

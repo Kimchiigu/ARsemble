@@ -13,6 +13,7 @@ struct StepView: View {
     var onBuild: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(Router.self) private var router
     @StateObject private var viewModel = StepViewModel()
     @StateObject private var camera = StepCameraSession()
     @State private var isOpeningEditor = false
@@ -67,7 +68,7 @@ private extension StepView {
             
             HStack {
                 BackButton {
-                    dismiss()
+                    router.popToLevel()
                 }.padding(.leading, 24).padding(.bottom, 36)
                 Spacer()
             }
@@ -215,4 +216,5 @@ private extension StepView {
 
 #Preview(traits: .landscapeLeft) {
     StepView()
+        .environment(Router())
 }

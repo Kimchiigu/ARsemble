@@ -31,7 +31,7 @@ struct EditorConfigView: View {
         }
         .padding(.top, 32)
         .padding(24)
-        .background(.thinMaterial)
+        .background(.white)
         .clipShape(RoundedRectangle(cornerRadius: 24))
     }
 }

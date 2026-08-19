@@ -40,9 +40,15 @@ struct EditorView: View {
 
     var body: some View {
         ZStack {
-            editorContent
+            VStack(alignment: .center){
+                HStack{
+                    BackButton(action: { router.popToLevel() })
+                    Spacer()
+                }.padding(.horizontal, 35).padding(.vertical, 20)
+                editorContent
+            }.background(Color("Background"))
 
-            Color(.systemBackground)
+            Color(.white)
                 .ignoresSafeArea()
                 .opacity(curtain ? 1 : 0)
                 .allowsHitTesting(false)
@@ -90,7 +96,7 @@ struct EditorView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .padding(phase == .editing ? 16 : 0)
+            .padding(phase == .editing ? 16 : 0).background(Color("Background"))
         }
     }
 
